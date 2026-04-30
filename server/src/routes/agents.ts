@@ -256,7 +256,14 @@ export function agentRoutes(db: Db) {
       next.model = DEFAULT_GEMINI_LOCAL_MODEL;
       return ensureGatewayDeviceKey(adapterType, next);
     }
-    // OpenCode requires explicit model selection — no default
+    // OpenCode: default to openrouter/free when OPENROUTER_API_KEY is available
+    if (adapterType === "opencode_local" && !asNonEmptyString(next.model)) {
+      const hasOpenRouterKey =
+        typeof process.env.OPENROUTER_API_KEY === "string" && process.env.OPENROUTER_API_KEY.length > 0;
+      if (hasOpenRouterKey) {
+        next.model = "openrouter/free";
+      }
+    }
     if (adapterType === "cursor" && !asNonEmptyString(next.model)) {
       next.model = DEFAULT_CURSOR_LOCAL_MODEL;
     }

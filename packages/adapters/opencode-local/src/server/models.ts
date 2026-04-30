@@ -163,6 +163,11 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
     throw new Error("OpenCode requires `adapterConfig.model` in provider/model format.");
   }
 
+  // "openrouter/free" is a virtual model resolved at execution time
+  if (model === "openrouter/free") {
+    return [{ id: "openrouter/free", label: "openrouter/free (auto-select best free model)" }];
+  }
+
   const models = await discoverOpenCodeModelsCached({
     command: input.command,
     cwd: input.cwd,
@@ -185,8 +190,19 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
 
 export async function listOpenCodeModels(): Promise<AdapterModel[]> {
   try {
-    return await discoverOpenCodeModelsCached();
+    const models = await discoverOpenCodeModelsCached();
+    const hasOpenRouterKey =
+      (typeof process.env.OPENROUTER_API_KEY === "string" && process.env.OPENROUTER_API_KEY.length > 0);
+    if (hasOpenRouterKey && !models.some((m) => m.id === "openrouter/free")) {
+      return [{ id: "openrouter/free", label: "openrouter/free (auto-select best free model)" }, ...models];
+    }
+    return models;
   } catch {
+    const hasOpenRouterKey =
+      (typeof process.env.OPENROUTER_API_KEY === "string" && process.env.OPENROUTER_API_KEY.length > 0);
+    if (hasOpenRouterKey) {
+      return [{ id: "openrouter/free", label: "openrouter/free (auto-select best free model)" }];
+    }
     return [];
   }
 }

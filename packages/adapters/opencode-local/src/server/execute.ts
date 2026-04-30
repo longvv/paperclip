@@ -20,6 +20,7 @@ import {
 } from "@paperclipai/adapter-utils/server-utils";
 import { isOpenCodeUnknownSessionError, parseOpenCodeJsonl } from "./parse.js";
 import { ensureOpenCodeModelConfiguredAndAvailable } from "./models.js";
+import { resolveFreeModel } from "./openrouter-free.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const PAPERCLIP_SKILLS_CANDIDATES = [
@@ -92,7 +93,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.",
   );
   const command = asString(config.command, "opencode");
-  const model = asString(config.model, "").trim();
+  let model = asString(config.model, "").trim();
   const variant = asString(config.variant, "").trim();
   const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, false);
 
@@ -169,6 +170,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     ),
   );
   await ensureCommandResolvable(command, cwd, runtimeEnv);
+
+  // Resolve "openrouter/free" to an actual free model from OpenRouter
+  if (model === "openrouter/free") {
+    const apiKey = runtimeEnv.OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "";
+    if (!apiKey) {
+      throw new Error(
+        'OPENROUTER_API_KEY is required when using model "openrouter/free". Set it in agent env or server environment.',
+      );
+    }
+    const resolved = await resolveFreeModel(apiKey);
+    await onLog("stderr", `[paperclip] Resolved openrouter/free → ${resolved}\n`);
+    model = `openrouter/${resolved}`;
+  }
 
   await ensureOpenCodeModelConfiguredAndAvailable({
     model,
