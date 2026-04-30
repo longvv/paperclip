@@ -12,6 +12,7 @@ interface OpenRouterModel {
     prompt?: string;
     completion?: string;
   };
+  supported_parameters?: string[];
 }
 
 interface OpenRouterModelsResponse {
@@ -26,10 +27,23 @@ interface CachedFreeModels {
 
 const cache = new Map<string, CachedFreeModels>();
 
+// Models known to reject extra fields in tool definitions (e.g. eager_input_streaming)
+const TOOL_INCOMPATIBLE_MODELS = new Set([
+  "minimax/minimax-m2.5:free",
+  "tencent/hy3-preview:free",
+]);
+
 function isFreeModel(model: OpenRouterModel): boolean {
   const prompt = model.pricing?.prompt;
   const completion = model.pricing?.completion;
   return prompt === "0" && completion === "0";
+}
+
+function supportsTools(model: OpenRouterModel): boolean {
+  if (TOOL_INCOMPATIBLE_MODELS.has(model.id)) return false;
+  const params = model.supported_parameters;
+  if (!params || params.length === 0) return true; // assume compatible if unknown
+  return params.includes("tools");
 }
 
 async function fetchFreeModels(apiKey: string): Promise<AdapterModel[]> {
@@ -50,7 +64,7 @@ async function fetchFreeModels(apiKey: string): Promise<AdapterModel[]> {
     }
 
     const body = (await res.json()) as OpenRouterModelsResponse;
-    const freeModels = (body.data ?? []).filter(isFreeModel);
+    const freeModels = (body.data ?? []).filter((m) => isFreeModel(m) && supportsTools(m));
 
     return freeModels.map((m) => ({
       id: m.id,
@@ -99,10 +113,10 @@ export async function resolveFreeModel(apiKey: string): Promise<string> {
     }
 
     const body = (await res.json()) as OpenRouterModelsResponse;
-    const freeModels = (body.data ?? []).filter(isFreeModel);
+    const freeModels = (body.data ?? []).filter((m) => isFreeModel(m) && supportsTools(m));
 
     if (freeModels.length === 0) {
-      throw new Error("No free models available on OpenRouter");
+      throw new Error("No free models with tool support available on OpenRouter");
     }
 
     // Pick the model with the largest context window
