@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { assets } from "@paperclipai/db";
 
@@ -17,6 +17,15 @@ export function assetService(db: Db) {
         .from(assets)
         .where(eq(assets.id, id))
         .then((rows) => rows[0] ?? null),
+
+    list: (companyId: string, limit = 100) =>
+      db
+        .select()
+        .from(assets)
+        .where(eq(assets.companyId, companyId))
+        .orderBy(desc(assets.createdAt))
+        .limit(limit),
   };
 }
+
 

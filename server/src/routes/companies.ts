@@ -9,7 +9,15 @@ import {
 } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
-import { accessService, companyPortabilityService, companyService, logActivity } from "../services/index.js";
+import {
+  accessService,
+  assetService,
+  companyPortabilityService,
+  companyService,
+  documentService,
+  heartbeatService,
+  logActivity,
+} from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 export function companyRoutes(db: Db) {
@@ -176,6 +184,30 @@ export function companyRoutes(db: Db) {
       return;
     }
     res.json({ ok: true });
+  });
+
+  router.get("/:companyId/artifacts/assets", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const assets = await assetService(db).list(companyId);
+    res.json(assets);
+  });
+
+  router.get("/:companyId/artifacts/documents", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const documents = await documentService(db).listCompanyDocuments(companyId);
+    res.json(documents);
+  });
+
+  router.get("/:companyId/heartbeat-runs", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const runs = await heartbeatService(db).list(companyId);
+    res.json(runs);
   });
 
   return router;

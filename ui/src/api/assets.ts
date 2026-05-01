@@ -26,4 +26,7 @@ export const assetsApi = {
     form.append("file", safeFile);
     return api.postForm<AssetImage>(`/companies/${companyId}/logo`, form);
   },
+
+  list: (companyId: string) => api.get<AssetImage[]>(`/companies/${companyId}/artifacts/assets`),
 };
+

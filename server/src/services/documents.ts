@@ -429,5 +429,33 @@ export function documentService(db: Db) {
         };
       });
     },
+
+    listCompanyDocuments: async (companyId: string, limit = 100) => {
+      const rows = await db
+        .select({
+          id: documents.id,
+          companyId: documents.companyId,
+          issueId: issueDocuments.issueId,
+          key: issueDocuments.key,
+          title: documents.title,
+          format: documents.format,
+          latestBody: documents.latestBody,
+          latestRevisionId: documents.latestRevisionId,
+          latestRevisionNumber: documents.latestRevisionNumber,
+          createdByAgentId: documents.createdByAgentId,
+          createdByUserId: documents.createdByUserId,
+          updatedByAgentId: documents.updatedByAgentId,
+          updatedByUserId: documents.updatedByUserId,
+          createdAt: documents.createdAt,
+          updatedAt: documents.updatedAt,
+        })
+        .from(issueDocuments)
+        .innerJoin(documents, eq(issueDocuments.documentId, documents.id))
+        .where(eq(documents.companyId, companyId))
+        .orderBy(desc(documents.updatedAt))
+        .limit(limit);
+      return rows.map((row) => mapIssueDocumentRow(row, true));
+    },
   };
 }
+
