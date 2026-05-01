@@ -18,6 +18,7 @@ import {
   listPaperclipSkillEntries,
   removeMaintainerOnlySkillSymlinks,
   renderTemplate,
+  resolveFlexibleInstructionsPath,
   runChildProcess,
 } from "@paperclipai/adapter-utils/server-utils";
 import { isPiUnknownSessionError, parsePiJsonl } from "./parse.js";
@@ -239,11 +240,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 
   // Handle instructions file and build system prompt extension
-  const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
-  const resolvedInstructionsFilePath = instructionsFilePath
-    ? path.resolve(cwd, instructionsFilePath)
-    : "";
-  const instructionsFileDir = instructionsFilePath ? `${path.dirname(instructionsFilePath)}/` : "";
+  const configuredInstructionsFilePath = asString(config.instructionsFilePath, "").trim();
+  const resolvedInstructionsFilePath = configuredInstructionsFilePath
+    ? await resolveFlexibleInstructionsPath(configuredInstructionsFilePath, cwd)
+    : null;
+  const instructionsFileDir = resolvedInstructionsFilePath ? `${path.dirname(resolvedInstructionsFilePath)}/` : "";
   
   let systemPromptExtension = "";
   let instructionsReadFailed = false;

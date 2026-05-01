@@ -17,10 +17,21 @@ import {
   ensurePathInEnv,
   renderTemplate,
   runChildProcess,
+  resolveFlexibleInstructionsPath,
 } from "@paperclipai/adapter-utils/server-utils";
 import { isOpenCodeUnknownSessionError, parseOpenCodeJsonl } from "./parse.js";
-import { ensureOpenCodeModelConfiguredAndAvailable } from "./models.js";
-import { resolveFreeModel } from "./openrouter-free.js";
+import { ensureOpenCodeModelConfiguredAndAvailable, discoverOpenCodeModelsCached } from "./models.js";
+import { resolveFreeModels } from "./openrouter-free.js";
+
+function isRateLimitOrUnavailableError(stderr: string, errorMessage?: string | null): boolean {
+  const combined = `${stderr}\n${errorMessage ?? ""}`.toLowerCase();
+  return combined.includes("429") || 
+         combined.includes("rate limit") || 
+         combined.includes("502") || 
+         combined.includes("503") || 
+         combined.includes("unavailable") ||
+         combined.includes("insufficient_quota");
+}
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const PAPERCLIP_SKILLS_CANDIDATES = [
@@ -171,17 +182,37 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   );
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
-  // Resolve "openrouter/free" to an actual free model from OpenRouter
-  if (model === "openrouter/free") {
+  let fallbackModels: string[] = [];
+
+  // Resolve "openrouter/free" or explicitly requested free OpenRouter models to an array of fallbacks
+  const isOpenRouterFree = model === "openrouter/free" || (model.startsWith("openrouter/") && model.endsWith(":free"));
+
+  if (isOpenRouterFree) {
     const apiKey = runtimeEnv.OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "";
     if (!apiKey) {
       throw new Error(
-        'OPENROUTER_API_KEY is required when using model "openrouter/free". Set it in agent env or server environment.',
+        'OPENROUTER_API_KEY is required when using OpenRouter free models. Set it in agent env or server environment.',
       );
     }
-    const resolved = await resolveFreeModel(apiKey);
-    await onLog("stderr", `[paperclip] Resolved openrouter/free → ${resolved}\n`);
-    model = `openrouter/${resolved}`;
+    const availableOpencodeModels = await discoverOpenCodeModelsCached({ command, cwd, env: runtimeEnv });
+    const availableModelIds = new Set(availableOpencodeModels.map(m => m.id));
+    const resolved = await resolveFreeModels(apiKey, availableModelIds);
+    if (resolved.length === 0) {
+      throw new Error("No free models with tool support available on OpenRouter");
+    }
+    
+    let resolvedModels = resolved.map(id => `openrouter/${id}`);
+    
+    if (model !== "openrouter/free") {
+      // Put the user's explicit model at the front of the list, then append the rest
+      resolvedModels = [model, ...resolvedModels.filter(m => m !== model)];
+    }
+    
+    fallbackModels = resolvedModels;
+    model = fallbackModels[0]; // Start with the best
+    await onLog("stderr", `[paperclip] Resolved openrouter free models → ${model} (with ${fallbackModels.length - 1} fallbacks)\n`);
+  } else {
+    fallbackModels = [model];
   }
 
   await ensureOpenCodeModelConfiguredAndAvailable({
@@ -214,9 +245,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 
   const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
-  const resolvedInstructionsFilePath = instructionsFilePath
-    ? path.resolve(cwd, instructionsFilePath)
-    : "";
+  const resolvedInstructionsFilePath = await resolveFlexibleInstructionsPath(instructionsFilePath, cwd);
   const instructionsDir = resolvedInstructionsFilePath ? `${path.dirname(resolvedInstructionsFilePath)}/` : "";
   let instructionsPrefix = "";
   if (resolvedInstructionsFilePath) {
@@ -390,21 +419,61 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     };
   };
 
-  const initial = await runAttempt(sessionId);
-  const initialFailed =
-    !initial.proc.timedOut && ((initial.proc.exitCode ?? 0) !== 0 || Boolean(initial.parsed.errorMessage));
-  if (
-    sessionId &&
-    initialFailed &&
-    isOpenCodeUnknownSessionError(initial.proc.stdout, initial.rawStderr)
-  ) {
-    await onLog(
-      "stderr",
-      `[paperclip] OpenCode session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
-    );
-    const retry = await runAttempt(null);
-    return toResult(retry, true);
+  let currentAttemptSessionId = sessionId;
+  let attemptCount = 0;
+  let lastAttemptResult: ReturnType<typeof toResult> | null = null;
+
+  for (const fallbackModel of fallbackModels) {
+    attemptCount++;
+    if (attemptCount > 1) {
+      model = fallbackModel;
+      await onLog("stderr", `[paperclip] Retrying with fallback model: ${model}\n`);
+      // Update model availability check, ignoring errors since we filtered by availableModelIds anyway
+      await ensureOpenCodeModelConfiguredAndAvailable({
+        model,
+        command,
+        cwd,
+        env: runtimeEnv,
+      }).catch(err => {
+        onLog("stderr", `[paperclip] Warning: ${err instanceof Error ? err.message : String(err)}\n`);
+      });
+    }
+
+    const attempt = await runAttempt(currentAttemptSessionId);
+    const attemptFailed =
+      !attempt.proc.timedOut && ((attempt.proc.exitCode ?? 0) !== 0 || Boolean(attempt.parsed.errorMessage));
+
+    const resultClearedSession = currentAttemptSessionId === null && sessionId !== null;
+    lastAttemptResult = toResult(attempt, resultClearedSession);
+
+    if (
+      currentAttemptSessionId &&
+      attemptFailed &&
+      isOpenCodeUnknownSessionError(attempt.proc.stdout, attempt.rawStderr)
+    ) {
+      await onLog(
+        "stderr",
+        `[paperclip] OpenCode session "${currentAttemptSessionId}" is unavailable; retrying with a fresh session.\n`,
+      );
+      currentAttemptSessionId = null;
+      // We don't advance the model in this case, we just retry without session
+      attemptCount--;
+      continue;
+    }
+
+    if (attemptFailed && attemptCount < fallbackModels.length) {
+      if (isRateLimitOrUnavailableError(attempt.rawStderr, attempt.parsed.errorMessage)) {
+        await onLog(
+          "stderr",
+          `[paperclip] Model ${model} failed due to rate limit or unavailability. Attempting next fallback model...\n`,
+        );
+        continue;
+      }
+    }
+
+    return lastAttemptResult;
   }
 
-  return toResult(initial);
+  // Fallback if loop exits without returning
+  return lastAttemptResult!;
 }

@@ -46,6 +46,30 @@ function normalizePathSlashes(value: string): string {
   return value.replaceAll("\\", "/");
 }
 
+export async function resolveFlexibleInstructionsPath(configuredPath: string, cwd: string): Promise<string> {
+  const trimmed = (configuredPath || "").trim();
+  if (!trimmed) return "";
+  
+  // 1. Try resolving relative to cwd (or absolute path as-is)
+  const directPath = path.resolve(cwd, trimmed);
+  const directExists = await fs.access(directPath).then(() => true).catch(() => false);
+  if (directExists) return directPath;
+  
+  // 2. If it's an absolute path but doesn't exist, try falling back to cwd + basename
+  // This handles the case where an absolute path from a different machine was synced.
+  if (path.isAbsolute(trimmed)) {
+    const fallbackPath = path.join(cwd, path.basename(trimmed));
+    const fallbackExists = await fs.access(fallbackPath).then(() => true).catch(() => false);
+    if (fallbackExists) {
+      console.warn(`[paperclip] Fallback path resolution: "${trimmed}" not found, using "${fallbackPath}" instead.`);
+      return fallbackPath;
+    }
+  }
+  
+  // Return the direct path even if it doesn't exist, to let the caller fail with its own warning/error
+  return directPath;
+}
+
 function isMaintainerOnlySkillTarget(candidate: string): boolean {
   return normalizePathSlashes(candidate).includes("/.agents/skills/");
 }

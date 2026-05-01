@@ -179,6 +179,12 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
   }
 
   if (!models.some((entry) => entry.id === model)) {
+    if (model.startsWith("openrouter/")) {
+      const envObj = (input.env as Record<string, string>) || {};
+      if (envObj.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY) {
+        return models;
+      }
+    }
     const sample = models.slice(0, 12).map((entry) => entry.id).join(", ");
     throw new Error(
       `Configured OpenCode model is unavailable: ${model}. Available models: ${sample}${models.length > 12 ? ", ..." : ""}`,

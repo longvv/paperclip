@@ -22,7 +22,7 @@ interface OpenRouterModelsResponse {
 interface CachedFreeModels {
   expiresAt: number;
   models: AdapterModel[];
-  bestModelId: string | null;
+  rankedModelIds: string[];
 }
 
 const cache = new Map<string, CachedFreeModels>();
@@ -85,15 +85,18 @@ export async function getFreeOpenRouterModels(apiKey: string): Promise<AdapterMo
   cache.set(apiKey, {
     expiresAt: Date.now() + CACHE_TTL_MS,
     models,
-    bestModelId: null,
+    rankedModelIds: [],
   });
   return models;
 }
 
-export async function resolveFreeModel(apiKey: string): Promise<string> {
+export async function resolveFreeModels(apiKey: string, availableModelIds: Set<string>): Promise<string[]> {
   const cached = cache.get(apiKey);
-  if (cached && cached.expiresAt > Date.now() && cached.bestModelId) {
-    return cached.bestModelId;
+  if (cached && cached.expiresAt > Date.now() && cached.rankedModelIds.length > 0) {
+    const validCachedModels = cached.rankedModelIds.filter(id => availableModelIds.has(`openrouter/${id}`));
+    if (validCachedModels.length > 0) {
+      return validCachedModels;
+    }
   }
 
   const controller = new AbortController();
@@ -119,22 +122,28 @@ export async function resolveFreeModel(apiKey: string): Promise<string> {
       throw new Error("No free models with tool support available on OpenRouter");
     }
 
-    // Pick the model with the largest context window
+    // Pick the models with the largest context window
     freeModels.sort((a, b) => (b.context_length ?? 0) - (a.context_length ?? 0));
-    const best = freeModels[0];
 
     const adapterModels = freeModels.map((m) => ({
       id: m.id,
       label: m.name ?? m.id,
     }));
 
+    const rankedModelIds = freeModels.map((m) => m.id);
+
     cache.set(apiKey, {
       expiresAt: Date.now() + CACHE_TTL_MS,
       models: adapterModels,
-      bestModelId: best.id,
+      rankedModelIds,
     });
 
-    return best.id;
+    const validModels = rankedModelIds.filter(id => availableModelIds.has(`openrouter/${id}`));
+    if (validModels.length === 0) {
+      return rankedModelIds;
+    }
+
+    return validModels;
   } finally {
     clearTimeout(timeout);
   }
