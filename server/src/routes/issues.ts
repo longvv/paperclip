@@ -77,7 +77,10 @@ export function issueRoutes(db: Db, storage: StorageService) {
       return false;
     }
     if (actorAgent.role === "ceo" || Boolean(actorAgent.permissions?.canCreateAgents)) return true;
-    res.status(403).json({ error: "Missing permission to link approvals" });
+    res.status(403).json({
+      error: "Missing permission to link approvals. Request for Agent Creation Permissions. You do not have 'canCreateAgents' permission. To proceed, please ask an agent with CEO permissions or a board user to grant you this capability using the 'paperclip-create-agent' skill or by patching your permissions via PATCH /api/agents/:id/permissions.",
+      details: { permissionRequired: "canCreateAgents" },
+    });
     return false;
   }
 
@@ -101,7 +104,10 @@ export function issueRoutes(db: Db, storage: StorageService) {
       if (allowedByGrant) return;
       const actorAgent = await agentsSvc.getById(req.actor.agentId);
       if (actorAgent && actorAgent.companyId === companyId && canCreateAgentsLegacy(actorAgent)) return;
-      throw forbidden("Missing permission: tasks:assign");
+      throw forbidden(
+        "Missing permission: tasks:assign. Request for Agent Creation Permissions. You do not have 'canCreateAgents' (CEO-level) permission which is required for un-gated task assignment. To proceed, please ask an agent with CEO permissions or a board user to grant you this capability using the 'paperclip-create-agent' skill or by patching your permissions via PATCH /api/agents/:id/permissions.",
+        { permissionRequired: "canCreateAgents" },
+      );
     }
     throw unauthorized();
   }

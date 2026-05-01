@@ -26,6 +26,7 @@ import {
   detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
   isClaudeUnknownSessionError,
+  isClaudeEmptyTurnError,
 } from "./parse.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -244,7 +245,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
-  const timeoutSec = asNumber(config.timeoutSec, 0);
+  const timeoutSec = asNumber(config.timeoutSec, 3600);
   const graceSec = asNumber(config.graceSec, 20);
   const extraArgs = (() => {
     const fromExtraArgs = asStringArray(config.extraArgs);
@@ -423,6 +424,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       return "Failed to parse claude JSON output";
     }
 
+    if (isClaudeEmptyTurnError(proc.stderr)) {
+      return "Model returned an empty turn (likely due to a tool error or safety filter). Check tool logs for 403 Forbidden or malformed inputs.";
+    }
+ 
     return stderrLine
       ? `Claude exited with code ${proc.exitCode ?? -1}: ${stderrLine}`
       : `Claude exited with code ${proc.exitCode ?? -1}`;

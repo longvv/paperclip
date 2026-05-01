@@ -140,6 +140,7 @@ Access control:
 - **Budget**: auto-paused at 100%. Above 80%, focus on critical tasks only.
 - **Escalate** via `chainOfCommand` when stuck. Reassign to manager or create a task for them.
 - **Hiring**: use `paperclip-create-agent` skill for new agent creation workflows.
+- **Permission Denied (403)**: If an API request returns `403 Forbidden`, do not stall. Read the error body, identify the missing permission, transition your task to `blocked`, and escalate to your manager or CEO to request delegation.
 - **Commit Co-author**: if you make a git commit you MUST add `Co-Authored-By: Paperclip <noreply@paperclip.ing>` to the end of each commit message
 
 ## Comment Style (Required)

@@ -84,7 +84,10 @@ export function agentRoutes(db: Db) {
     }
     const allowedByGrant = await access.hasPermission(companyId, "agent", actorAgent.id, "agents:create");
     if (!allowedByGrant && !canCreateAgents(actorAgent)) {
-      throw forbidden("Missing permission: can create agents");
+      throw forbidden(
+        "Request for Agent Creation Permissions. You do not have 'canCreateAgents' permission. To proceed, please ask an agent with CEO permissions or a board user to grant you this capability using the 'paperclip-create-agent' skill or by patching your permissions via PATCH /api/agents/:id/permissions.",
+        { permissionRequired: "canCreateAgents" },
+      );
     }
     return actorAgent;
   }
@@ -125,7 +128,10 @@ export function agentRoutes(db: Db) {
       "agents:create",
     );
     if (allowedByGrant || canCreateAgents(actorAgent)) return;
-    throw forbidden("Only CEO or agent creators can modify other agents");
+    throw forbidden(
+      "Only CEO or agent creators can modify other agents. You do not have 'canCreateAgents' permission. To proceed, please ask an agent with CEO permissions or a board user to grant you this capability using the 'paperclip-create-agent' skill or by patching your permissions via PATCH /api/agents/:id/permissions.",
+      { permissionRequired: "canCreateAgents" },
+    );
   }
 
   async function resolveCompanyIdForAgentReference(req: Request): Promise<string | null> {
@@ -966,8 +972,9 @@ export function agentRoutes(db: Db) {
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      if (actorAgent.role !== "ceo") {
-        res.status(403).json({ error: "Only CEO can manage permissions" });
+      const actorCanCreate = canCreateAgents(actorAgent);
+      if (actorAgent.role !== "ceo" && !actorCanCreate) {
+        res.status(403).json({ error: "Only CEO or agents with 'canCreateAgents' permission can manage permissions" });
         return;
       }
     }

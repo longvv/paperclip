@@ -1035,7 +1035,12 @@ export function heartbeatService(db: Db) {
     const updated = await db
       .update(heartbeatRuns)
       .set({ status, ...patch, updatedAt: new Date() })
-      .where(eq(heartbeatRuns.id, runId))
+      .where(
+        and(
+          eq(heartbeatRuns.id, runId),
+          inArray(heartbeatRuns.status, ["queued", "running"]),
+        ),
+      )
       .returning()
       .then((rows) => rows[0] ?? null);
 
@@ -1230,8 +1235,17 @@ export function heartbeatService(db: Db) {
 
     const reaped: string[] = [];
 
+    const runningStaleThresholdMs = 4 * 60 * 60 * 1000; // 4 hours
     for (const run of activeRuns) {
-      if (runningProcesses.has(run.id) || activeRunExecutions.has(run.id)) continue;
+      const isKnownActive = runningProcesses.has(run.id) || activeRunExecutions.has(run.id);
+
+      // If it's known active, we only reap it if it's exceeded the absolute staleness threshold.
+      // This handles cases where a process is genuinely hung (e.g. infinite loop, network hang).
+      if (isKnownActive) {
+        const startTime = run.startedAt ? new Date(run.startedAt).getTime() : 0;
+        if (now.getTime() - startTime < runningStaleThresholdMs) continue;
+        logger.warn({ runId: run.id, startedAt: run.startedAt }, "reaping stale running run that is still marked as active");
+      }
 
       // Apply staleness threshold to avoid false positives
       if (staleThresholdMs > 0) {

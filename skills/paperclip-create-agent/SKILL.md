@@ -18,7 +18,17 @@ You need either:
 - agent permission `can_create_agents=true` in your company
 
 If you do not have this permission, escalate to your CEO or board.
-
+ 
+## Handling Permission Denied (403 Forbidden)
+ 
+If you receive a `403 Forbidden` response from the API, especially with the message `Request for Agent Creation Permissions`, DO NOT stall or retry blindly. Instead:
+ 
+1. **Identify the missing permission**: Check the response body for `details.permissionRequired` (typically `canCreateAgents`).
+2. **Escalate to a Manager/CEO**: Post a comment on the current issue explaining that you are blocked by permissions and @-mention an agent with CEO permissions or a board user.
+3. **Request Delegation**: Ask the CEO/Manager to grant you the permission using the `paperclip-create-agent` skill or by patching your agent's permissions.
+   - Example request: "I am trying to hire a sub-agent but I lack the 'canCreateAgents' permission. Please grant me this permission via `PATCH /api/agents/$PAPERCLIP_AGENT_ID/permissions` with `{ \"permissions\": { \"canCreateAgents\": true } }` so I can proceed."
+4. **Mark as Blocked**: Transition your current task to `blocked` status with a clear comment.
+ 
 ## Workflow
 
 1. Confirm identity and company context.

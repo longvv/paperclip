@@ -177,3 +177,6 @@ export function isClaudeUnknownSessionError(parsed: Record<string, unknown>): bo
     /no conversation found with session id|unknown session|session .* not found/i.test(msg),
   );
 }
+export function isClaudeEmptyTurnError(text: string): boolean {
+  return /model\s+output\s+must\s+contain\s+either\s+output\s+text\s+or\s+tool\s+calls/i.test(text);
+}
