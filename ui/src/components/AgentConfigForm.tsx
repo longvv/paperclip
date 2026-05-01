@@ -23,7 +23,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { FolderOpen, Heart, ChevronDown, X } from "lucide-react";
+import { FolderOpen, Heart, ChevronDown, X, FileText } from "lucide-react";
 import { cn } from "../lib/utils";
 import { extractModelName, extractProviderId } from "../lib/model-utils";
 import { queryKeys } from "../lib/queryKeys";
@@ -44,6 +44,7 @@ import { ClaudeLocalAdvancedFields } from "../adapters/claude-local/config-field
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
 import { OpenCodeLogoIcon } from "./OpenCodeLogoIcon";
+import { InstructionsContentModal } from "./InstructionsContentModal";
 
 /* ---- Create mode values ---- */
 
@@ -319,6 +320,23 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   // Popover states
   const [modelOpen, setModelOpen] = useState(false);
   const [thinkingEffortOpen, setThinkingEffortOpen] = useState(false);
+  // Instructions content modal
+  const [instructionsModalOpen, setInstructionsModalOpen] = useState(false);
+
+  // Determine if current agent has a configured instructions file path
+  const hasInstructionsPath = !isCreate && (() => {
+    const INSTRUCTIONS_PATH_KEYS: Record<string, string> = {
+      claude_local: "instructionsFilePath",
+      codex_local: "instructionsFilePath",
+      gemini_local: "instructionsFilePath",
+      opencode_local: "instructionsFilePath",
+      cursor: "instructionsFilePath",
+    };
+    const key = INSTRUCTIONS_PATH_KEYS[adapterType];
+    if (!key) return false;
+    const val = config[key];
+    return typeof val === "string" && val.trim().length > 0;
+  })();
 
   // Create mode helpers
   const val = isCreate ? props.values : null;
@@ -603,6 +621,28 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
 
           {/* Adapter-specific fields */}
           <uiAdapter.ConfigFields {...adapterFieldProps} />
+
+          {/* View/Edit Instructions file button (edit mode only, when path is set) */}
+          {!isCreate && hasInstructionsPath && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-xs w-full"
+                onClick={() => setInstructionsModalOpen(true)}
+              >
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
+                View / Edit instructions file
+              </Button>
+              <InstructionsContentModal
+                open={instructionsModalOpen}
+                onOpenChange={setInstructionsModalOpen}
+                agentId={props.agent.id}
+                companyId={selectedCompanyId ?? undefined}
+              />
+            </>
+          )}
         </div>
 
       </div>

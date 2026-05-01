@@ -144,4 +144,8 @@ export const agentsApi = {
   ) => api.post<HeartbeatRun | { status: "skipped" }>(agentPath(id, companyId, "/wakeup"), data),
   loginWithClaude: (id: string, companyId?: string) =>
     api.post<ClaudeLoginResult>(agentPath(id, companyId, "/claude-login"), {}),
+  getInstructionsContent: (id: string, companyId?: string) =>
+    api.get<{ path: string; content: string }>(agentPath(id, companyId, "/instructions-content")),
+  saveInstructionsContent: (id: string, content: string, companyId?: string) =>
+    api.put<{ ok: true; path: string; bytes: number }>(agentPath(id, companyId, "/instructions-content"), { content }),
 };

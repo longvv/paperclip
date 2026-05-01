@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import type { Db } from "@paperclipai/db";
 import { agents as agentsTable, companies, heartbeatRuns } from "@paperclipai/db";
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
@@ -1076,6 +1077,120 @@ export function agentRoutes(db: Db) {
       adapterConfigKey,
       path: pathValue,
     });
+  });
+
+  // GET /agents/:id/instructions-content — read the instructions file from the server filesystem
+  router.get("/agents/:id/instructions-content", async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertBoard(req);
+
+    const adapterConfig = asRecord(existing.adapterConfig) ?? {};
+    const explicitKey = req.query.adapterConfigKey as string | undefined;
+    const defaultKey = DEFAULT_INSTRUCTIONS_PATH_KEYS[existing.adapterType] ?? null;
+    const adapterConfigKey = explicitKey ?? defaultKey;
+    if (!adapterConfigKey) {
+      res.status(422).json({ error: `No default instructions path key for adapter type '${existing.adapterType}'.` });
+      return;
+    }
+
+    const configuredPath = asNonEmptyString(adapterConfig[adapterConfigKey]);
+    if (!configuredPath) {
+      res.status(404).json({ error: "No instructions file path configured for this agent." });
+      return;
+    }
+
+    // Resolve path: try as-is, then fallback to basename in cwd
+    const cwd = asNonEmptyString(adapterConfig.cwd) ?? "/";
+    let resolvedPath = path.isAbsolute(configuredPath)
+      ? configuredPath
+      : path.resolve(cwd, configuredPath);
+
+    const directExists = await fs.access(resolvedPath).then(() => true).catch(() => false);
+    if (!directExists && path.isAbsolute(configuredPath)) {
+      const fallback = path.join(cwd, path.basename(configuredPath));
+      const fallbackExists = await fs.access(fallback).then(() => true).catch(() => false);
+      if (fallbackExists) resolvedPath = fallback;
+    }
+
+    try {
+      const content = await fs.readFile(resolvedPath, "utf8");
+      res.json({ path: resolvedPath, content });
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        res.status(404).json({ error: `Instructions file not found: ${resolvedPath}` });
+      } else {
+        res.status(500).json({ error: `Failed to read instructions file: ${(err as Error).message}` });
+      }
+    }
+  });
+
+  // PUT /agents/:id/instructions-content — write content back to the instructions file
+  router.put("/agents/:id/instructions-content", async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertBoard(req);
+
+    const { content } = req.body as { content?: unknown };
+    if (typeof content !== "string") {
+      res.status(400).json({ error: "Request body must include 'content' as a string." });
+      return;
+    }
+
+    const adapterConfig = asRecord(existing.adapterConfig) ?? {};
+    const explicitKey = req.query.adapterConfigKey as string | undefined;
+    const defaultKey = DEFAULT_INSTRUCTIONS_PATH_KEYS[existing.adapterType] ?? null;
+    const adapterConfigKey = explicitKey ?? defaultKey;
+    if (!adapterConfigKey) {
+      res.status(422).json({ error: `No default instructions path key for adapter type '${existing.adapterType}'.` });
+      return;
+    }
+
+    const configuredPath = asNonEmptyString(adapterConfig[adapterConfigKey]);
+    if (!configuredPath) {
+      res.status(404).json({ error: "No instructions file path configured for this agent." });
+      return;
+    }
+
+    const cwd = asNonEmptyString(adapterConfig.cwd) ?? "/";
+    let resolvedPath = path.isAbsolute(configuredPath)
+      ? configuredPath
+      : path.resolve(cwd, configuredPath);
+
+    const directExists = await fs.access(resolvedPath).then(() => true).catch(() => false);
+    if (!directExists && path.isAbsolute(configuredPath)) {
+      const fallback = path.join(cwd, path.basename(configuredPath));
+      const fallbackExists = await fs.access(fallback).then(() => true).catch(() => false);
+      if (fallbackExists) resolvedPath = fallback;
+    }
+
+    try {
+      await fs.writeFile(resolvedPath, content, "utf8");
+      const actor = getActorInfo(req);
+      await logActivity(db, {
+        companyId: existing.companyId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        action: "agent.instructions_content_updated",
+        entityType: "agent",
+        entityId: existing.id,
+        details: { path: resolvedPath, bytes: Buffer.byteLength(content, "utf8") },
+      });
+      res.json({ ok: true, path: resolvedPath, bytes: Buffer.byteLength(content, "utf8") });
+    } catch (err) {
+      res.status(500).json({ error: `Failed to write instructions file: ${(err as Error).message}` });
+    }
   });
 
   router.patch("/agents/:id", validate(updateAgentSchema), async (req, res) => {
