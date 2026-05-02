@@ -98,6 +98,20 @@ _Curated long-term knowledge. Last updated: 2026-05-02 09:41:21_
 - **[TD] Test Design** (`bmad-testarch-test-design`): Risk-based test planning. | After: bmad-testarch-framework
 - **[AT] ATDD** (`bmad-testarch-atdd`): Generate red-phase acceptance test scaffolds before implementation. | Phase: bmad-create-story:create | After: bmad-dev-story
 - **[TA] Test Automation** (`bmad-testarch-automate`): Expand test coverage. | Phase: bmad-testarch-atdd
+
+## Second Brain (Knowledge Graph)
+
+The **Second Brain** plugin (`paperclip.second-brain`) provides a long-term memory layer for the company. It automatically indexes:
+- **Issues**: Created and updated events.
+- **Goals**: Created and updated events.
+- **Documents**: Created and updated events.
+
+### Available Knowledge Tools:
+- `query_knowledge(query, limit?)`: Search the knowledge graph for context. Use this when you need background on a project, goal, or issue that isn't in your immediate context.
+- `get_entity_relationships(entityType, entityId)`: Discover links between entities (e.g., what goals this issue supports, what documents are related).
+- `suggest_related_context(content, limit?)`: Find related entities based on a block of text.
+
+Agents should use these tools to ensure alignment with company-wide goals and to avoid duplicating research or work documented in other issues/documents.
 - **[RV] Test Review** (`bmad-testarch-test-review`): Quality audit (0-100 scoring). | Phase: bmad-testarch-automate
 - **[NR] NFR Assessment** (`bmad-testarch-nfr`): Non-functional requirements assessment. | Phase: bmad-testarch-automate
 - **[CI] CI Setup** (`bmad-testarch-ci`): Configure CI/CD quality pipeline. | Phase: bmad-testarch-framework

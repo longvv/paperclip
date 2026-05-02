@@ -567,6 +567,8 @@ export const PLUGIN_EVENT_TYPES = [
   "approval.created",
   "approval.decided",
   "cost_event.created",
+  "issue.document_created",
+  "issue.document_updated",
   "activity.logged",
 ] as const;
 export type PluginEventType = (typeof PLUGIN_EVENT_TYPES)[number];
