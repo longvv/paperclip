@@ -8,7 +8,7 @@ import { agentApiKeys, companyMemberships, instanceUserRoles } from "@paperclipa
 import type { DeploymentMode } from "@paperclipai/shared";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
 import { logger } from "../middleware/logger.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { subscribeCompanyLiveEvents, subscribeGlobalLiveEvents } from "../services/live-events.js";
 
 interface WsSocket {
   readyState: number;
@@ -69,6 +69,10 @@ function parseCompanyId(pathname: string) {
   } catch {
     return null;
   }
+}
+
+function parseMasterTracePath(pathname: string) {
+  return pathname === "/api/master-trace/ws";
 }
 
 function parseBearerToken(rawAuth: string | string[] | undefined) {
@@ -142,7 +146,7 @@ async function authorizeUpgrade(
         ),
     ]);
 
-    const hasCompanyMembership = memberships.some((row) => row.companyId === companyId);
+    const hasCompanyMembership = companyId === "*" || memberships.some((row) => row.companyId === companyId);
     if (!roleRow && !hasCompanyMembership) return null;
 
     return {
@@ -159,7 +163,7 @@ async function authorizeUpgrade(
     .where(and(eq(agentApiKeys.keyHash, tokenHash), isNull(agentApiKeys.revokedAt)))
     .then((rows) => rows[0] ?? null);
 
-  if (!key || key.companyId !== companyId) {
+  if (!key || (companyId !== "*" && key.companyId !== companyId)) {
     return null;
   }
 
@@ -205,10 +209,15 @@ export function setupLiveEventsWebSocketServer(
       return;
     }
 
-    const unsubscribe = subscribeCompanyLiveEvents(context.companyId, (event) => {
-      if (socket.readyState !== WebSocket.OPEN) return;
-      socket.send(JSON.stringify(event));
-    });
+    const unsubscribe = context.companyId === "*" 
+      ? subscribeGlobalLiveEvents((event) => {
+          if (socket.readyState !== WebSocket.OPEN) return;
+          socket.send(JSON.stringify(event));
+        })
+      : subscribeCompanyLiveEvents(context.companyId, (event) => {
+          if (socket.readyState !== WebSocket.OPEN) return;
+          socket.send(JSON.stringify(event));
+        });
 
     cleanupByClient.set(socket, unsubscribe);
     aliveByClient.set(socket, true);
@@ -241,15 +250,16 @@ export function setupLiveEventsWebSocketServer(
 
     const url = new URL(req.url, "http://localhost");
     const companyId = parseCompanyId(url.pathname);
-    if (!companyId) {
+    const isMasterTrace = parseMasterTracePath(url.pathname);
+
+    if (!companyId && !isMasterTrace) {
       socket.destroy();
       return;
     }
 
-    void authorizeUpgrade(db, req, companyId, url, {
-      deploymentMode: opts.deploymentMode,
-      resolveSessionFromHeaders: opts.resolveSessionFromHeaders,
-    })
+    const targetCompanyId = isMasterTrace ? "*" : companyId!;
+
+    void authorizeUpgrade(db, req, targetCompanyId, url, opts)
       .then((context) => {
         if (!context) {
           rejectUpgrade(socket, "403 Forbidden", "forbidden");

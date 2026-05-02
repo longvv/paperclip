@@ -11,6 +11,8 @@ import { Terminal, Activity, Clock, Bot, History } from "lucide-react";
 import { useCompany } from "@/context/CompanyContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LiveLogViewer } from "@/components/LiveLogViewer";
+import { MasterTraceViewer } from "@/components/MasterTraceViewer";
+import { cn } from "@/lib/utils";
 
 export function Logs() {
   const { companyPrefix } = useParams<{ companyPrefix: string }>();
@@ -18,7 +20,7 @@ export function Logs() {
   const [activeTab, setActiveTab] = useState("live");
 
   const { data: runs, isLoading } = useQuery({
-    queryKey: ["heartbeat-runs", company?.id, "all"],
+    queryKey: queryKeys.heartbeats(company?.id!),
     queryFn: () => heartbeatsApi.list(company!.id),
     enabled: !!company?.id,
     refetchInterval: 5000,
@@ -67,6 +69,13 @@ export function Logs() {
                 Live Console
               </TabsTrigger>
               <TabsTrigger 
+                value="trace" 
+                className="h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 gap-2 text-sm font-semibold transition-all hover:text-foreground"
+              >
+                <Activity className="w-4 h-4" />
+                Master Trace
+              </TabsTrigger>
+              <TabsTrigger 
                 value="history" 
                 className="h-12 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 gap-2 text-sm font-semibold transition-all hover:text-foreground"
               >
@@ -78,6 +87,10 @@ export function Logs() {
 
           <TabsContent value="live" className="flex-1 p-6 m-0 focus-visible:outline-none overflow-hidden">
             <LiveLogViewer />
+          </TabsContent>
+
+          <TabsContent value="trace" className="flex-1 p-6 m-0 focus-visible:outline-none overflow-hidden">
+            <MasterTraceViewer />
           </TabsContent>
 
           <TabsContent value="history" className="flex-1 m-0 focus-visible:outline-none overflow-hidden">

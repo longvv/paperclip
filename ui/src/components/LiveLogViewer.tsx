@@ -39,7 +39,7 @@ export function LiveLogViewer() {
   entriesRef.current = entries;
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents(selectedCompanyId!),
+    queryKey: queryKeys.agents.list(selectedCompanyId!),
     queryFn: () => agentsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
   });

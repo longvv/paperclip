@@ -106,9 +106,12 @@ export function Sidebar() {
 
         <SidebarAgents />
 
+        <SidebarSection label="Vault">
+          <SidebarNavItem to="/artifacts" label="Artifact Vault" icon={Database} />
+        </SidebarSection>
+
         <SidebarSection label="Monitoring">
           <SidebarNavItem to="/logs" label="Live Logs" icon={Terminal} />
-          <SidebarNavItem to="/artifacts" label="Artifacts" icon={Database} />
           <SidebarNavItem to="/activity" label="Activity" icon={History} />
         </SidebarSection>
 
