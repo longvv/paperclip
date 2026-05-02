@@ -602,8 +602,10 @@ Behavior:
 
 ## 11.4 Context Delivery
 
-- `thin`: send IDs and pointers only; agent fetches context via API
-- `fat`: include current assignments, goal summary, budget snapshot, and recent comments
+Configurable via `adapter_config.context_mode` (default: `fat`):
+
+- `thin`: send IDs and pointers only; adapter truncates instruction files and provides disk paths; agent fetches detailed context via API.
+- `fat`: include current assignments, goal summary, budget snapshot, recent comments, and full instruction file contents.
 
 ## 11.5 Scheduler Rules
 

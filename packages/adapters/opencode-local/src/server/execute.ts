@@ -107,6 +107,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   let model = asString(config.model, "").trim();
   const variant = asString(config.variant, "").trim();
   const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, false);
+  const contextMode = asString(config.contextMode ?? config.context_mode, "fat").toLowerCase();
 
   const workspaceContext = parseObject(context.paperclipWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
@@ -251,14 +252,32 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (resolvedInstructionsFilePath) {
     try {
       const instructionsContents = await fs.readFile(resolvedInstructionsFilePath, "utf8");
-      instructionsPrefix =
-        `${instructionsContents}\n\n` +
-        `The above agent instructions were loaded from ${resolvedInstructionsFilePath}. ` +
-        `Resolve any relative file references from ${instructionsDir}.\n\n`;
-      await onLog(
-        "stderr",
-        `[paperclip] Loaded agent instructions file: ${resolvedInstructionsFilePath}\n`,
-      );
+      
+      if (contextMode === "thin") {
+        const lines = instructionsContents.split("\n");
+        // Take the first 50 lines or up to the first major header change to preserve identity
+        const identitySlice = lines.slice(0, 50).join("\n");
+        instructionsPrefix =
+          `${identitySlice}\n\n` +
+          `[CONTEXT MODE: THIN]\n` +
+          `The full instructions for this agent are too large to be included in every prompt. ` +
+          `They are located at: ${resolvedInstructionsFilePath}\n` +
+          `If you need the full details (e.g. detailed skill lists, module documentation), please READ that file using your tools.\n\n` +
+          `Resolve any relative file references from ${instructionsDir}.\n\n`;
+        await onLog(
+          "stderr",
+          `[paperclip] Loaded THIN agent instructions from: ${resolvedInstructionsFilePath} (Context Mode: thin)\n`,
+        );
+      } else {
+        instructionsPrefix =
+          `${instructionsContents}\n\n` +
+          `The above agent instructions were loaded from ${resolvedInstructionsFilePath}. ` +
+          `Resolve any relative file references from ${instructionsDir}.\n\n`;
+        await onLog(
+          "stderr",
+          `[paperclip] Loaded FULL agent instructions file: ${resolvedInstructionsFilePath} (Context Mode: fat)\n`,
+        );
+      }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       await onLog(
