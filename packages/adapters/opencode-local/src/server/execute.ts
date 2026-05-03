@@ -185,33 +185,58 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   let fallbackModels: string[] = [];
 
-  // Resolve "openrouter/free" or explicitly requested free OpenRouter models to an array of fallbacks
-  const isOpenRouterFree = model === "openrouter/free" || (model.startsWith("openrouter/") && model.endsWith(":free"));
+  // Resolve "openrouter/free" or "opencode/free" or explicitly requested free OpenRouter models to an array of fallbacks
+  const isOpenRouterFree =
+    model === "openrouter/free" || (model.startsWith("openrouter/") && model.endsWith(":free"));
+  const isOpenCodeFree = model === "opencode/free";
 
-  if (isOpenRouterFree) {
-    const apiKey = runtimeEnv.OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "";
-    if (!apiKey) {
-      throw new Error(
-        'OPENROUTER_API_KEY is required when using OpenRouter free models. Set it in agent env or server environment.',
-      );
+  if (isOpenRouterFree || isOpenCodeFree) {
+    const availableOpencodeModels = await discoverOpenCodeModelsCached({
+      command,
+      cwd,
+      env: runtimeEnv,
+    });
+    const availableModelIds = new Set(availableOpencodeModels.map((m) => m.id));
+
+    let resolvedModels: string[] = [];
+
+    if (isOpenRouterFree) {
+      const apiKey = runtimeEnv.OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "";
+      if (!apiKey) {
+        throw new Error(
+          "OPENROUTER_API_KEY is required when using OpenRouter free models. Set it in agent env or server environment.",
+        );
+      }
+      const resolved = await resolveFreeModels(apiKey, availableModelIds);
+      if (resolved.length === 0) {
+        throw new Error("No free models with tool support available on OpenRouter");
+      }
+      resolvedModels = resolved.map((id) => `openrouter/${id}`);
+
+      if (model !== "openrouter/free") {
+        // Put the user's explicit model at the front of the list, then append the rest
+        resolvedModels = [model, ...resolvedModels.filter((m) => m !== model)];
+      }
+    } else {
+      // opencode/free - pick all available models that end with :free
+      resolvedModels = Array.from(availableModelIds).filter((id) => id.endsWith(":free"));
+      if (resolvedModels.length === 0) {
+        // Fallback to any available models if none are explicitly marked :free
+        // or just pick the top ones. For now, let's just use the discovered list.
+        resolvedModels = availableOpencodeModels.slice(0, 5).map((m) => m.id);
+      }
     }
-    const availableOpencodeModels = await discoverOpenCodeModelsCached({ command, cwd, env: runtimeEnv });
-    const availableModelIds = new Set(availableOpencodeModels.map(m => m.id));
-    const resolved = await resolveFreeModels(apiKey, availableModelIds);
-    if (resolved.length === 0) {
-      throw new Error("No free models with tool support available on OpenRouter");
+
+    if (resolvedModels.length === 0) {
+      throw new Error(`No available free models found for ${model}`);
     }
-    
-    let resolvedModels = resolved.map(id => `openrouter/${id}`);
-    
-    if (model !== "openrouter/free") {
-      // Put the user's explicit model at the front of the list, then append the rest
-      resolvedModels = [model, ...resolvedModels.filter(m => m !== model)];
-    }
-    
+
     fallbackModels = resolvedModels;
     model = fallbackModels[0]; // Start with the best
-    await onLog("stderr", `[paperclip] Resolved openrouter free models → ${model} (with ${fallbackModels.length - 1} fallbacks)\n`);
+    await onLog(
+      "stderr",
+      `[paperclip] Resolved ${model.startsWith("openrouter/") ? "openrouter" : "opencode"} free models → ${model} (with ${fallbackModels.length - 1} fallbacks)\n`,
+    );
   } else {
     fallbackModels = [model];
   }

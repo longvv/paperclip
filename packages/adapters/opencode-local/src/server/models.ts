@@ -179,6 +179,9 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
   }
 
   if (!models.some((entry) => entry.id === model)) {
+    if (model === "opencode/free") {
+      return models;
+    }
     if (model.startsWith("openrouter/")) {
       const envObj = (input.env as Record<string, string>) || {};
       if (envObj.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY) {
@@ -195,21 +198,36 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
 }
 
 export async function listOpenCodeModels(): Promise<AdapterModel[]> {
+  const hasOpenRouterKey =
+    typeof process.env.OPENROUTER_API_KEY === "string" && process.env.OPENROUTER_API_KEY.length > 0;
+
   try {
     const models = await discoverOpenCodeModelsCached();
-    const hasOpenRouterKey =
-      (typeof process.env.OPENROUTER_API_KEY === "string" && process.env.OPENROUTER_API_KEY.length > 0);
-    if (hasOpenRouterKey && !models.some((m) => m.id === "openrouter/free")) {
-      return [{ id: "openrouter/free", label: "openrouter/free (auto-select best free model)" }, ...models];
+    const result = [...models];
+
+    if (!result.some((m) => m.id === "opencode/free")) {
+      result.unshift({ id: "opencode/free", label: "opencode/free (auto-select best free model)" });
     }
-    return models;
+
+    if (hasOpenRouterKey && !result.some((m) => m.id === "openrouter/free")) {
+      result.unshift({
+        id: "openrouter/free",
+        label: "openrouter/free (auto-select best free model)",
+      });
+    }
+
+    return result;
   } catch {
-    const hasOpenRouterKey =
-      (typeof process.env.OPENROUTER_API_KEY === "string" && process.env.OPENROUTER_API_KEY.length > 0);
+    const result: AdapterModel[] = [
+      { id: "opencode/free", label: "opencode/free (auto-select best free model)" },
+    ];
     if (hasOpenRouterKey) {
-      return [{ id: "openrouter/free", label: "openrouter/free (auto-select best free model)" }];
+      result.unshift({
+        id: "openrouter/free",
+        label: "openrouter/free (auto-select best free model)",
+      });
     }
-    return [];
+    return result;
   }
 }
 

@@ -28,9 +28,12 @@ interface CachedFreeModels {
 const cache = new Map<string, CachedFreeModels>();
 
 // Models known to reject extra fields in tool definitions (e.g. eager_input_streaming)
+// or that have extremely low reliability for tool use.
 const TOOL_INCOMPATIBLE_MODELS = new Set([
   "minimax/minimax-m2.5:free",
   "tencent/hy3-preview:free",
+  "qwen/qwen-2-7b-instruct:free",
+  "microsoft/phi-3-medium-128k-instruct:free",
 ]);
 
 function isFreeModel(model: OpenRouterModel): boolean {

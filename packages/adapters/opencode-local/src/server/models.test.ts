@@ -11,9 +11,11 @@ describe("openCode models", () => {
     resetOpenCodeModelsCacheForTests();
   });
 
-  it("returns an empty list when discovery command is unavailable", async () => {
+  it("returns opencode/free model when discovery command is unavailable", async () => {
     process.env.PAPERCLIP_OPENCODE_COMMAND = "__paperclip_missing_opencode_command__";
-    await expect(listOpenCodeModels()).resolves.toEqual([]);
+    await expect(listOpenCodeModels()).resolves.toEqual([
+      { id: "opencode/free", label: "opencode/free (auto-select best free model)" },
+    ]);
   });
 
   it("rejects when model is missing", async () => {

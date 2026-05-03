@@ -143,6 +143,11 @@ export function NewAgent() {
     setFormError(null);
     if (configValues.adapterType === "opencode_local") {
       const selectedModel = configValues.model.trim();
+      const isFreeModel =
+        selectedModel === "opencode/free" ||
+        selectedModel === "openrouter/free" ||
+        (selectedModel.startsWith("openrouter/") && selectedModel.endsWith(":free"));
+
       if (!selectedModel) {
         setFormError("OpenCode requires an explicit model in provider/model format.");
         return;
@@ -160,7 +165,7 @@ export function NewAgent() {
         return;
       }
       const discovered = adapterModels ?? [];
-      if (!discovered.some((entry) => entry.id === selectedModel)) {
+      if (!isFreeModel && !discovered.some((entry) => entry.id === selectedModel)) {
         setFormError(
           discovered.length === 0
             ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
