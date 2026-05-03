@@ -673,6 +673,17 @@ export function IssueDocumentsSection({
                       <Copy className="h-3.5 w-3.5" />
                     )}
                   </Button>
+                  {!activeDraft && (
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground transition-colors"
+                      title="Edit document"
+                      onClick={() => beginEdit(doc.key)}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -685,6 +696,12 @@ export function IssueDocumentsSection({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {activeDraft ? (
+                        <DropdownMenuItem onClick={() => cancelDraft()}>
+                          <X className="h-3.5 w-3.5" />
+                          Cancel editing
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuItem
                         onClick={() => downloadDocumentFile(doc.key, activeDraft?.body ?? doc.body)}
                       >
@@ -709,11 +726,6 @@ export function IssueDocumentsSection({
               {!isFolded ? (
                 <div
                   className="mt-3 space-y-3"
-                  onFocusCapture={() => {
-                    if (!activeDraft) {
-                      beginEdit(doc.key);
-                    }
-                  }}
                   onBlurCapture={async (event) => {
                     if (activeDraft) {
                       await handleDraftBlur(event);
@@ -797,35 +809,47 @@ export function IssueDocumentsSection({
                     />
                   )}
                   <div
-                    className={`${documentBodyShellClassName} ${documentBodyPaddingClassName} ${
-                      activeDraft ? "" : "hover:bg-accent/10"
-                    }`}
+                    className={cn(
+                      documentBodyShellClassName,
+                      !activeDraft && documentBodyPaddingClassName,
+                      !activeDraft && "hover:bg-accent/10 cursor-default",
+                    )}
                   >
-                    <MarkdownEditor
-                      value={activeDraft?.body ?? doc.body}
-                      onChange={(body) => {
-                        markDocumentDirty(doc.key);
-                        setDraft((current) => {
-                          if (current && current.key === doc.key && !current.isNew) {
-                            return { ...current, body };
-                          }
-                          return {
-                            key: doc.key,
-                            title: doc.title ?? "",
-                            body,
-                            baseRevisionId: doc.latestRevisionId,
-                            isNew: false,
-                          };
-                        });
-                      }}
-                      placeholder="Markdown body"
-                      bordered={false}
-                      className="bg-transparent"
-                      contentClassName={documentBodyContentClassName}
-                      mentions={mentions}
-                      imageUploadHandler={imageUploadHandler}
-                      onSubmit={() => void commitDraft(activeDraft ?? draft, { clearAfterSave: false, trackAutosave: true })}
-                    />
+                    {activeDraft ? (
+                      <MarkdownEditor
+                        key={`editor-${doc.key}-${doc.latestRevisionId}`}
+                        value={activeDraft.body}
+                        onChange={(body) => {
+                          markDocumentDirty(doc.key);
+                          setDraft((current) => {
+                            if (current && current.key === doc.key && !current.isNew) {
+                              return { ...current, body };
+                            }
+                            return {
+                              key: doc.key,
+                              title: doc.title ?? "",
+                              body,
+                              baseRevisionId: doc.latestRevisionId,
+                              isNew: false,
+                            };
+                          });
+                        }}
+                        placeholder="Markdown body"
+                        bordered={false}
+                        className="bg-transparent"
+                        contentClassName={documentBodyContentClassName}
+                        mentions={mentions}
+                        imageUploadHandler={imageUploadHandler}
+                        onSubmit={() => void commitDraft(activeDraft ?? draft, { clearAfterSave: false, trackAutosave: true })}
+                      />
+                    ) : (
+                      <div 
+                        className={cn("prose prose-sm prose-invert max-w-none", documentBodyContentClassName)}
+                        onDoubleClick={() => beginEdit(doc.key)}
+                      >
+                        {renderBody(doc.body)}
+                      </div>
+                    )}
                   </div>
                   <div className="flex min-h-4 items-center justify-end px-1">
                     <span
