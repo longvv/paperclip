@@ -30,7 +30,7 @@ async function syncAgents() {
     for (const [key, bmadAgent] of Object.entries(bmadAgents) as [string, any][]) {
       console.log(`Syncing agent: ${key}...`);
       
-      const loaderCmd = `./ui/node_modules/.bin/tsx scripts/bmad-loader.ts ${key}`;
+      const loaderCmd = `tsx scripts/bmad-loader.ts ${key}`;
       const loaderOutput = execSync(loaderCmd).toString();
       const resolved = JSON.parse(loaderOutput);
 
