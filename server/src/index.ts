@@ -518,7 +518,7 @@ export async function startServer(): Promise<StartedServer> {
     });
   
   if (config.heartbeatSchedulerEnabled) {
-    const heartbeat = heartbeatService(db as any);
+    const heartbeat = heartbeatService(db as any, config);
   
     // Reap orphaned running runs at startup while in-memory execution state is empty,
     // then resume any persisted queued runs that were waiting on the previous process.
@@ -532,8 +532,8 @@ export async function startServer(): Promise<StartedServer> {
       void heartbeat
         .tickTimers(new Date())
         .then((result) => {
-          if (result.enqueued > 0) {
-            logger.info({ ...result }, "heartbeat timer tick enqueued runs");
+          if (result.enqueued > 0 || result.skipped > 0) {
+            logger.info({ ...result }, "heartbeat timer tick results");
           }
         })
         .catch((err) => {

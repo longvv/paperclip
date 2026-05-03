@@ -15,6 +15,7 @@ import {
 } from "@paperclipai/db";
 import { conflict, notFound } from "../errors.js";
 import { logger } from "../middleware/logger.js";
+import type { Config } from "../config.js";
 import { publishLiveEvent } from "./live-events.js";
 import { getRunLogStore, type RunLogHandle } from "./run-log-store.js";
 import { getServerAdapter, runningProcesses } from "../adapters/index.js";
@@ -552,7 +553,7 @@ function resolveNextSessionState(input: {
   };
 }
 
-export function heartbeatService(db: Db) {
+export function heartbeatService(db: Db, config?: Config) {
   const runLogStore = getRunLogStore();
   const secretsSvc = secretService(db);
   const issuesSvc = issueService(db);
@@ -1142,6 +1143,14 @@ export function heartbeatService(db: Db) {
     return Number(count ?? 0);
   }
 
+  async function countTotalRunningRuns() {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(heartbeatRuns)
+      .where(eq(heartbeatRuns.status, "running"));
+    return Number(count ?? 0);
+  }
+
   async function claimQueuedRun(run: typeof heartbeatRuns.$inferSelect) {
     if (run.status !== "queued") return run;
     const claimedAt = new Date();
@@ -1155,25 +1164,36 @@ export function heartbeatService(db: Db) {
       .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.status, "queued")))
       .returning()
       .then((rows) => rows[0] ?? null);
-    if (!claimed) return null;
 
-    publishLiveEvent({
-      companyId: claimed.companyId,
-      type: "heartbeat.run.status",
-      payload: {
-        runId: claimed.id,
-        agentId: claimed.agentId,
-        status: claimed.status,
-        invocationSource: claimed.invocationSource,
-        triggerDetail: claimed.triggerDetail,
-        error: claimed.error ?? null,
-        errorCode: claimed.errorCode ?? null,
-        startedAt: claimed.startedAt ? new Date(claimed.startedAt).toISOString() : null,
-        finishedAt: claimed.finishedAt ? new Date(claimed.finishedAt).toISOString() : null,
-      },
-    });
+    if (claimed) {
+      await db
+        .update(agents)
+        .set({
+          status: "running",
+          lastHeartbeatAt: claimedAt,
+          updatedAt: claimedAt,
+        })
+        .where(eq(agents.id, claimed.agentId));
 
-    await setWakeupStatus(claimed.wakeupRequestId, "claimed", { claimedAt });
+      publishLiveEvent({
+        companyId: claimed.companyId,
+        type: "heartbeat.run.status",
+        payload: {
+          runId: claimed.id,
+          agentId: claimed.agentId,
+          status: claimed.status,
+          invocationSource: claimed.invocationSource,
+          triggerDetail: claimed.triggerDetail,
+          error: claimed.error ?? null,
+          errorCode: claimed.errorCode ?? null,
+          startedAt: claimed.startedAt ? new Date(claimed.startedAt).toISOString() : null,
+          finishedAt: claimed.finishedAt ? new Date(claimed.finishedAt).toISOString() : null,
+        },
+      });
+
+      await setWakeupStatus(claimed.wakeupRequestId, "claimed", { claimedAt });
+    }
+
     return claimed;
   }
 
@@ -1345,6 +1365,11 @@ export function heartbeatService(db: Db) {
     return withAgentStartLock(agentId, async () => {
       const agent = await getAgent(agentId);
       if (!agent) return [];
+
+      const totalRunning = await countTotalRunningRuns();
+      const globalMax = config?.heartbeatMaxTotalConcurrentRuns ?? 5;
+      if (totalRunning >= globalMax) return [];
+
       const policy = parseHeartbeatPolicy(agent);
       const runningCount = await countRunningRunsForAgent(agentId);
       const availableSlots = Math.max(0, policy.maxConcurrentRuns - runningCount);
@@ -2543,7 +2568,7 @@ export function heartbeatService(db: Db) {
       });
 
       if (outcome.kind === "deferred" || outcome.kind === "skipped") return null;
-      if (outcome.kind === "coalesced") return outcome.run;
+      if (outcome.kind === "coalesced") return { run: outcome.run, status: "coalesced" as const };
 
       const newRun = outcome.run;
       publishLiveEvent({
@@ -2559,7 +2584,7 @@ export function heartbeatService(db: Db) {
       });
 
       await startNextQueuedRunForAgent(agent.id);
-      return newRun;
+      return { run: newRun, status: "new" as const };
     }
 
     const activeRuns = await db
@@ -2611,7 +2636,7 @@ export function heartbeatService(db: Db) {
         runId: mergedRun.id,
         finishedAt: new Date(),
       });
-      return mergedRun;
+      return { run: mergedRun, status: "coalesced" as const };
     }
 
     const wakeupRequest = await db
@@ -2670,7 +2695,7 @@ export function heartbeatService(db: Db) {
 
     await startNextQueuedRunForAgent(agent.id);
 
-    return newRun;
+    return { run: newRun, status: "new" as const };
   }
 
   return {
@@ -2826,11 +2851,23 @@ export function heartbeatService(db: Db) {
         if (!policy.enabled || policy.intervalSec <= 0) continue;
 
         checked += 1;
-        const baseline = new Date(agent.lastHeartbeatAt ?? agent.createdAt).getTime();
+
+        // Find the latest run (queued or running) to see if we've already scheduled or are running a run within this interval.
+        const latestRun = await db
+          .select({ createdAt: heartbeatRuns.createdAt })
+          .from(heartbeatRuns)
+          .where(and(eq(heartbeatRuns.agentId, agent.id), inArray(heartbeatRuns.status, ["queued", "running"])))
+          .orderBy(desc(heartbeatRuns.createdAt))
+          .limit(1)
+          .then((rows) => rows[0] ?? null);
+
+        const lastHeartbeat = agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt) : agent.createdAt;
+        const baseline = Math.max(lastHeartbeat.getTime(), latestRun ? new Date(latestRun.createdAt).getTime() : 0);
         const elapsedMs = now.getTime() - baseline;
+
         if (elapsedMs < policy.intervalSec * 1000) continue;
 
-        const run = await enqueueWakeup(agent.id, {
+        const result = await enqueueWakeup(agent.id, {
           source: "timer",
           triggerDetail: "system",
           reason: "heartbeat_timer",
@@ -2842,8 +2879,9 @@ export function heartbeatService(db: Db) {
             now: now.toISOString(),
           },
         });
-        if (run) enqueued += 1;
-        else skipped += 1;
+
+        if (result?.status === "new") enqueued += 1;
+        else if (result?.status === "coalesced") skipped += 1;
       }
 
       return { checked, enqueued, skipped };

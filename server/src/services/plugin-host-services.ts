@@ -831,7 +831,7 @@ export function buildHostServices(
         await ensurePluginAvailableForCompany(companyId);
         const agent = await agents.getById(params.agentId);
         requireInCompany("Agent", agent, companyId);
-        const run = await heartbeat.wakeup(params.agentId, {
+        const result = await heartbeat.wakeup(params.agentId, {
           source: "automation",
           triggerDetail: "system",
           reason: params.reason ?? null,
@@ -839,8 +839,8 @@ export function buildHostServices(
           requestedByActorType: "system",
           requestedByActorId: pluginId,
         });
-        if (!run) throw new Error("Agent wakeup was skipped by heartbeat policy");
-        return { runId: run.id };
+        if (!result) throw new Error("Agent wakeup was skipped by heartbeat policy");
+        return { runId: result.run.id };
       },
     },
 
@@ -961,7 +961,7 @@ export function buildHostServices(
           .then((rows) => rows[0] ?? null);
         if (!session) throw new Error(`Session not found: ${params.sessionId}`);
 
-        const run = await heartbeat.wakeup(session.agentId, {
+        const result = await heartbeat.wakeup(session.agentId, {
           source: "automation",
           triggerDetail: "system",
           reason: params.reason ?? null,
@@ -974,7 +974,8 @@ export function buildHostServices(
           requestedByActorType: "system",
           requestedByActorId: pluginId,
         });
-        if (!run) throw new Error("Agent wakeup was skipped by heartbeat policy");
+        if (!result) throw new Error("Agent wakeup was skipped by heartbeat policy");
+        const { run } = result;
 
         // Subscribe to live events and forward to the plugin worker as notifications.
         // Track the subscription so it can be cleaned up on dispose() if the run

@@ -148,7 +148,7 @@ export function approvalRoutes(db: Db) {
 
       if (approval.requestedByAgentId) {
         try {
-          const wakeRun = await heartbeat.wakeup(approval.requestedByAgentId, {
+          const result = await heartbeat.wakeup(approval.requestedByAgentId, {
             source: "automation",
             triggerDetail: "system",
             reason: "approval_approved",
@@ -180,7 +180,7 @@ export function approvalRoutes(db: Db) {
             entityId: approval.id,
             details: {
               requesterAgentId: approval.requestedByAgentId,
-              wakeRunId: wakeRun?.id ?? null,
+              wakeRunId: result?.run.id ?? null,
               linkedIssueIds,
             },
           });

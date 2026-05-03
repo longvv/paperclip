@@ -1421,7 +1421,7 @@ export function agentRoutes(db: Db) {
       return;
     }
 
-    const run = await heartbeat.wakeup(id, {
+    const result = await heartbeat.wakeup(id, {
       source: req.body.source,
       triggerDetail: req.body.triggerDetail ?? "manual",
       reason: req.body.reason ?? null,
@@ -1436,10 +1436,12 @@ export function agentRoutes(db: Db) {
       },
     });
 
-    if (!run) {
+    if (!result) {
       res.status(202).json({ status: "skipped" });
       return;
     }
+
+    const { run } = result;
 
     const actor = getActorInfo(req);
     await logActivity(db, {
@@ -1471,7 +1473,7 @@ export function agentRoutes(db: Db) {
       return;
     }
 
-    const run = await heartbeat.invoke(
+    const result = await heartbeat.invoke(
       id,
       "on_demand",
       {
@@ -1485,10 +1487,12 @@ export function agentRoutes(db: Db) {
       },
     );
 
-    if (!run) {
+    if (!result) {
       res.status(202).json({ status: "skipped" });
       return;
     }
+
+    const { run } = result;
 
     const actor = getActorInfo(req);
     await logActivity(db, {
