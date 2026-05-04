@@ -63,8 +63,6 @@ export function NewAgent() {
   const [searchParams] = useSearchParams();
   const presetAdapterType = searchParams.get("adapterType");
 
-  const [name, setName] = useState("");
-  const [title, setTitle] = useState("");
   const [role, setRole] = useState("general");
   const [reportsTo, setReportsTo] = useState("");
   const [configValues, setConfigValues] = useState<CreateConfigValues>(defaultCreateValues);
@@ -103,8 +101,7 @@ export function NewAgent() {
 
   useEffect(() => {
     if (isFirstAgent) {
-      if (!name) setName("CEO");
-      if (!title) setTitle("CEO");
+      if (!configValues.name) setConfigValues((prev) => ({ ...prev, name: "CEO", title: "CEO" }));
     }
   }, [isFirstAgent]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -139,7 +136,7 @@ export function NewAgent() {
   }
 
   function handleSubmit() {
-    if (!selectedCompanyId || !name.trim()) return;
+    if (!selectedCompanyId || !configValues.name.trim()) return;
     setFormError(null);
     if (configValues.adapterType === "opencode_local") {
       const selectedModel = configValues.model.trim();
@@ -175,9 +172,9 @@ export function NewAgent() {
       }
     }
     createAgent.mutate({
-      name: name.trim(),
+      name: configValues.name.trim(),
       role: effectiveRole,
-      ...(title.trim() ? { title: title.trim() } : {}),
+      ...(configValues.title.trim() ? { title: configValues.title.trim() } : {}),
       ...(reportsTo ? { reportsTo } : {}),
       adapterType: configValues.adapterType,
       adapterConfig: buildAdapterConfig(),
@@ -211,8 +208,8 @@ export function NewAgent() {
           <input
             className="w-full text-lg font-semibold bg-transparent outline-none placeholder:text-muted-foreground/50"
             placeholder="Agent name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={configValues.name}
+            onChange={(e) => setConfigValues((prev) => ({ ...prev, name: e.target.value }))}
             autoFocus
           />
         </div>
@@ -222,8 +219,8 @@ export function NewAgent() {
           <input
             className="w-full bg-transparent outline-none text-sm text-muted-foreground placeholder:text-muted-foreground/40"
             placeholder="Title (e.g. VP of Engineering)"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            value={configValues.title}
+            onChange={(e) => setConfigValues((prev) => ({ ...prev, title: e.target.value }))}
           />
         </div>
 
@@ -330,7 +327,7 @@ export function NewAgent() {
             </Button>
             <Button
               size="sm"
-              disabled={!name.trim() || createAgent.isPending}
+              disabled={!configValues.name.trim() || createAgent.isPending}
               onClick={handleSubmit}
             >
               {createAgent.isPending ? "Creating…" : "Create agent"}

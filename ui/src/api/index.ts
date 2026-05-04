@@ -14,4 +14,5 @@ export { dashboardApi } from "./dashboard";
 export { heartbeatsApi } from "./heartbeats";
 export { sidebarBadgesApi } from "./sidebarBadges";
 export { documentsApi } from "./documents";
+export { bmadApi } from "./bmad";
 

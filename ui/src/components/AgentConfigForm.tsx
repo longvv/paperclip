@@ -45,6 +45,8 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
 import { OpenCodeLogoIcon } from "./OpenCodeLogoIcon";
 import { InstructionsContentModal } from "./InstructionsContentModal";
+import { BMadPersonaDropdown } from "./BMadPersonaDropdown";
+import { bmadApi } from "../api/bmad";
 
 /* ---- Create mode values ---- */
 
@@ -323,6 +325,25 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   // Instructions content modal
   const [instructionsModalOpen, setInstructionsModalOpen] = useState(false);
 
+  const applyPersona = useMutation({
+    mutationFn: (key: string) => bmadApi.getPersona(key),
+    onSuccess: (persona) => {
+      if (isCreate) {
+        set!({
+          name: persona.name || "",
+          title: persona.role,
+          capabilities: persona.capabilities,
+          promptTemplate: persona.systemPrompt,
+        });
+      } else {
+        if (persona.name) mark("identity", "name", persona.name);
+        mark("identity", "title", persona.role);
+        mark("identity", "capabilities", persona.capabilities);
+        mark("adapterConfig", "promptTemplate", persona.systemPrompt);
+      }
+    },
+  });
+
   // Determine if current agent has a configured instructions file path
   const hasInstructionsPath = !isCreate && (() => {
     const INSTRUCTIONS_PATH_KEYS: Record<string, string> = {
@@ -427,7 +448,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
             ? <h3 className="text-sm font-medium mb-3">Identity</h3>
             : <div className="px-4 py-2 text-xs font-medium text-muted-foreground">Identity</div>
           }
-          <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
+          <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-4" : "px-4 pb-3 space-y-4")}>
+            <BMadPersonaDropdown 
+              onSelect={(key) => applyPersona.mutate(key)}
+            />
+            <div className="h-px bg-border/40" />
             <Field label="Name" hint={help.name}>
               <DraftInput
                 value={eff("identity", "name", props.agent.name)}
