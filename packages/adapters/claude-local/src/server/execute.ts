@@ -312,6 +312,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.",
   );
   const model = asString(config.model, "");
+
+  // Enforce "Never Claude" policy
+  throw new Error(`Unauthorized model: "${model}". Claude models are strictly prohibited due to cost. Please use opencode_local with a free model (:free suffix).`);
   const effort = asString(config.effort, "");
   const chrome = asBoolean(config.chrome, false);
   const maxTurns = asNumber(config.maxTurnsPerRun, 0);

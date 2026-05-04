@@ -96,6 +96,23 @@ async function ensureOpenCodeSkillsInjected(onLog: AdapterExecutionContext["onLo
   }
 }
 
+function isModelAllowed(model: string): boolean {
+  const m = model.toLowerCase();
+  
+  // OpenRouter models MUST be explicitly marked as free
+  if (m.startsWith("openrouter/")) {
+    return m.endsWith(":free") || m.includes("/free");
+  }
+  
+  // Internal opencode models are allowed (assumed free/safe)
+  if (m.startsWith("opencode/")) return true;
+  
+  // For models with no provider prefix, check suffix
+  if (m.endsWith(":free")) return true;
+  
+  return false;
+}
+
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
   const { runId, agent, runtime, config, context, onLog, onMeta, authToken } = ctx;
 
@@ -105,6 +122,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   );
   const command = asString(config.command, "opencode");
   let model = asString(config.model, "").trim();
+
+  // Enforce free models policy
+  if (model.length > 0 && model !== "openrouter/free" && model !== "opencode/free") {
+    if (!isModelAllowed(model)) {
+      throw new Error(`Unauthorized model: "${model}". Only free models (suffix :free) are allowed.`);
+    }
+  }
   const variant = asString(config.variant, "").trim();
   const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, false);
   const contextMode = asString(config.contextMode ?? config.context_mode, "fat").toLowerCase();
