@@ -41,6 +41,7 @@ import {
   resolveExecutionWorkspaceMode,
 } from "./execution-workspace-policy.js";
 import { redactCurrentUserText, redactCurrentUserValue } from "../log-redaction.js";
+import { bmadService } from "./bmad-service.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -1432,6 +1433,20 @@ export function heartbeatService(db: Db, config?: Config) {
       return;
     }
 
+    // Resolve BMad persona and override system instructions/capabilities if linked
+    if (agent.bmadPersona) {
+      try {
+        const bmad = bmadService();
+        const persona = await bmad.resolvePersona(agent.bmadPersona);
+        if (persona) {
+          agent.capabilities = persona.capabilities;
+          logger.info({ agentId: agent.id, persona: agent.bmadPersona }, "Overrode agent capabilities from BMad persona in executeRun");
+        }
+      } catch (err) {
+        logger.error({ err, agentId: agent.id, persona: agent.bmadPersona }, "Failed to override agent capabilities from BMad in executeRun");
+      }
+    }
+
     const runtime = await ensureRuntimeState(agent);
     const context = parseObject(run.contextSnapshot);
     const taskKey = deriveTaskKey(context, null);
@@ -1495,9 +1510,27 @@ export function heartbeatService(db: Db, config?: Config) {
       mode: executionWorkspaceMode,
       legacyUseProjectWorkspace: issueAssigneeOverrides?.useProjectWorkspace ?? null,
     });
-    const mergedConfig = issueAssigneeOverrides?.adapterConfig
+    let mergedConfig = issueAssigneeOverrides?.adapterConfig
       ? { ...workspaceManagedConfig, ...issueAssigneeOverrides.adapterConfig }
       : workspaceManagedConfig;
+
+    // Resolve BMad Persona at runtime if configured
+    if (agent.bmadPersona) {
+      try {
+        const bmad = bmadService();
+        const persona = await bmad.resolvePersona(agent.bmadPersona);
+        if (persona) {
+          mergedConfig = {
+            ...mergedConfig,
+            promptTemplate: persona.systemPrompt,
+            capabilities: persona.capabilities,
+          };
+          logger.info({ agentId: agent.id, persona: agent.bmadPersona }, "Resolved BMad persona for agent run");
+        }
+      } catch (err) {
+        logger.error({ err, agentId: agent.id, persona: agent.bmadPersona }, "Failed to resolve BMad persona for run");
+      }
+    }
     const { config: resolvedConfig, secretKeys } = await secretsSvc.resolveAdapterConfigForRuntime(
       agent.companyId,
       mergedConfig,
@@ -2264,6 +2297,20 @@ export function heartbeatService(db: Db, config?: Config) {
 
     const agent = await getAgent(agentId);
     if (!agent) throw notFound("Agent not found");
+
+    // Resolve BMad persona and override system instructions/capabilities if linked
+    if (agent.bmadPersona) {
+      try {
+        const bmad = bmadService();
+        const persona = await bmad.resolvePersona(agent.bmadPersona);
+        if (persona) {
+          agent.capabilities = persona.capabilities;
+          logger.info({ agentId: agent.id, persona: agent.bmadPersona }, "Overrode agent capabilities from BMad persona in enqueueWakeup");
+        }
+      } catch (err) {
+        logger.error({ err, agentId: agent.id, persona: agent.bmadPersona }, "Failed to override agent capabilities from BMad in enqueueWakeup");
+      }
+    }
 
     if (
       agent.status === "paused" ||

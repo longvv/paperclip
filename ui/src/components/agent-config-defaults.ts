@@ -29,5 +29,6 @@ export const defaultCreateValues: CreateConfigValues = {
   intervalSec: 300,
   name: "",
   title: "",
+  bmadPersona: "",
   capabilities: "",
 };

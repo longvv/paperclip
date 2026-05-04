@@ -250,5 +250,6 @@ export interface CreateConfigValues {
   intervalSec: number;
   name: string;
   title: string;
+  bmadPersona?: string;
   capabilities: string;
 }

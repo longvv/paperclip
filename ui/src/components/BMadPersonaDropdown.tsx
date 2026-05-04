@@ -11,10 +11,10 @@ import { Sparkles } from "lucide-react";
 
 interface BMadPersonaDropdownProps {
   onSelect: (key: string) => void;
-  selectedKey?: string;
+  value?: string;
 }
 
-export function BMadPersonaDropdown({ onSelect, selectedKey }: BMadPersonaDropdownProps) {
+export function BMadPersonaDropdown({ onSelect, value }: BMadPersonaDropdownProps) {
   const { data: roles = [], isLoading } = useQuery({
     queryKey: ["bmad", "roles"],
     queryFn: bmadApi.listRoles,
@@ -28,7 +28,7 @@ export function BMadPersonaDropdown({ onSelect, selectedKey }: BMadPersonaDropdo
         <Sparkles className="h-3 w-3 text-amber-500" />
         <span className="text-xs font-medium text-amber-200/80">Adopt BMad Persona</span>
       </div>
-      <Select value={selectedKey} onValueChange={onSelect} disabled={isLoading}>
+      <Select value={value} onValueChange={onSelect} disabled={isLoading}>
         <SelectTrigger className="w-full bg-amber-500/5 border-amber-500/20 text-amber-100/90 h-9 font-mono text-sm">
           <SelectValue placeholder={isLoading ? "Loading roles..." : "Select a persona to adopt"} />
         </SelectTrigger>

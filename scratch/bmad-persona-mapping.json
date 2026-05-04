@@ -1,0 +1,19 @@
+{
+  "bmad-agent-analyst": "Auditor, Business Analyst, Researcher",
+  "bmad-agent-architect": "System Architect, Solution Architect",
+  "bmad-agent-dev": "Software Engineer, Developer, Programmer",
+  "bmad-agent-pm": "Product Manager, CPO",
+  "bmad-agent-ux-designer": "UX Designer, UI Designer, Sally",
+  "bmad-tea": "QA, Tester, Test Architect, Murat",
+  "bmad-cis-agent-storyteller": "Storyteller, Sophia",
+  "bmad-cis-agent-design-thinking-coach": "Design Thinking, Maya",
+  "bmad-cis-agent-brainstorming-coach": "Brainstorming, Carson",
+  "bmad-cis-agent-creative-problem-solver": "Problem Solver, Quinn",
+  "bmad-cis-agent-innovation-strategist": "Innovation Strategist, Victor",
+  "bmad-cis-agent-presentation-master": "Presentation, Caravaggio",
+  "gds-agent-game-architect": "Game Architect",
+  "gds-agent-game-designer": "Game Designer",
+  "gds-agent-game-dev": "Game Developer",
+  "gds-agent-game-solo-dev": "Solo Dev",
+  "gds-agent-tech-writer": "Technical Writer, Paige"
+}

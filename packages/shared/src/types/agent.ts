@@ -18,6 +18,7 @@ export interface Agent {
   icon: string | null;
   status: AgentStatus;
   reportsTo: string | null;
+  bmadPersona: string | null;
   capabilities: string | null;
   adapterType: AgentAdapterType;
   adapterConfig: Record<string, unknown>;

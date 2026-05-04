@@ -327,17 +327,19 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
 
   const applyPersona = useMutation({
     mutationFn: (key: string) => bmadApi.getPersona(key),
-    onSuccess: (persona) => {
+    onSuccess: (persona, key) => {
       if (isCreate) {
         set!({
           name: persona.name || "",
           title: persona.role,
+          bmadPersona: key,
           capabilities: persona.capabilities,
           promptTemplate: persona.systemPrompt,
         });
       } else {
         if (persona.name) mark("identity", "name", persona.name);
         mark("identity", "title", persona.role);
+        mark("identity", "bmadPersona", key);
         mark("identity", "capabilities", persona.capabilities);
         mark("adapterConfig", "promptTemplate", persona.systemPrompt);
       }
@@ -450,6 +452,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           }
           <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-4" : "px-4 pb-3 space-y-4")}>
             <BMadPersonaDropdown 
+              value={isCreate ? val!.bmadPersona : eff("identity", "bmadPersona", props.agent.bmadPersona ?? "")}
               onSelect={(key) => applyPersona.mutate(key)}
             />
             <div className="h-px bg-border/40" />
