@@ -42,6 +42,9 @@ import {
 } from "./execution-workspace-policy.js";
 import { redactCurrentUserText, redactCurrentUserValue } from "../log-redaction.js";
 import { bmadService } from "./bmad-service.js";
+import { artifactRegistrationService } from "./artifact-registration.js";
+import { getStorageService } from "../storage/index.js";
+
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -1984,6 +1987,21 @@ export function heartbeatService(db: Db, config?: Config) {
         finishedAt: new Date(),
         error: adapterResult.errorMessage ?? null,
       });
+
+      // Register artifacts from the workspace (e.g. _bmad-output)
+      try {
+        const storage = getStorageService();
+        const artifactSvc = artifactRegistrationService(db, storage);
+        await artifactSvc.registerArtifacts({
+          companyId: agent.companyId,
+          agentId: agent.id,
+          runId: run.id,
+          workspaceCwd: executionWorkspace.cwd,
+        });
+      } catch (artifactErr) {
+        logger.error({ err: artifactErr, runId: run.id }, "Failed to register agent artifacts");
+      }
+
 
       const finalizedRun = await getRun(run.id);
       if (finalizedRun) {

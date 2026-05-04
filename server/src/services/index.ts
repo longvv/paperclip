@@ -21,3 +21,5 @@ export { publishLiveEvent, subscribeCompanyLiveEvents } from "./live-events.js";
 export { masterTraceService } from "./master-trace.js";
 export { reconcilePersistedRuntimeServicesOnStartup } from "./workspace-runtime.js";
 export { createStorageServiceFromConfig, getStorageService } from "../storage/index.js";
+export { artifactRegistrationService } from "./artifact-registration.js";
+
