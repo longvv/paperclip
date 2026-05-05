@@ -1155,6 +1155,14 @@ export function heartbeatService(db: Db, config?: Config) {
     return Number(count ?? 0);
   }
 
+  async function countTotalRunningTimerRuns() {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(heartbeatRuns)
+      .where(and(eq(heartbeatRuns.status, "running"), eq(heartbeatRuns.invocationSource, "timer")));
+    return Number(count ?? 0);
+  }
+
   async function claimQueuedRun(run: typeof heartbeatRuns.$inferSelect) {
     if (run.status !== "queued") return run;
     const claimedAt = new Date();
@@ -1374,6 +1382,9 @@ export function heartbeatService(db: Db, config?: Config) {
       const globalMax = config?.heartbeatMaxTotalConcurrentRuns ?? 5;
       if (totalRunning >= globalMax) return [];
 
+      const totalTimerRunning = await countTotalRunningTimerRuns();
+      const timerMax = config?.heartbeatMaxTimerConcurrentRuns ?? 3;
+
       const policy = parseHeartbeatPolicy(agent);
       const runningCount = await countRunningRunsForAgent(agentId);
       const availableSlots = Math.max(0, policy.maxConcurrentRuns - runningCount);
@@ -1383,14 +1394,26 @@ export function heartbeatService(db: Db, config?: Config) {
         .select()
         .from(heartbeatRuns)
         .where(and(eq(heartbeatRuns.agentId, agentId), eq(heartbeatRuns.status, "queued")))
-        .orderBy(asc(heartbeatRuns.createdAt))
-        .limit(availableSlots);
+        .orderBy(
+          sql`CASE WHEN ${heartbeatRuns.invocationSource} = 'timer' THEN 1 ELSE 0 END`,
+          asc(heartbeatRuns.createdAt)
+        )
+        .limit(availableSlots + 5);
       if (queuedRuns.length === 0) return [];
 
       const claimedRuns: Array<typeof heartbeatRuns.$inferSelect> = [];
       for (const queuedRun of queuedRuns) {
+        if (claimedRuns.length >= availableSlots) break;
+
+        // Skip timer runs if we have reached the timer concurrency limit
+        if (queuedRun.invocationSource === "timer" && totalTimerRunning >= timerMax) {
+          continue;
+        }
+
         const claimed = await claimQueuedRun(queuedRun);
-        if (claimed) claimedRuns.push(claimed);
+        if (claimed) {
+          claimedRuns.push(claimed);
+        }
       }
       if (claimedRuns.length === 0) return [];
 

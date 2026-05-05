@@ -70,6 +70,7 @@ export interface Config {
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
   heartbeatMaxTotalConcurrentRuns: number;
+  heartbeatMaxTimerConcurrentRuns: number;
   companyDeletionEnabled: boolean;
 }
 
@@ -253,6 +254,7 @@ export function loadConfig(): Config {
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     heartbeatMaxTotalConcurrentRuns: Math.max(1, Number(process.env.PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS) || 5),
+    heartbeatMaxTimerConcurrentRuns: Math.max(1, Number(process.env.PAPERCLIP_HEARTBEAT_MAX_TIMER_CONCURRENT_RUNS) || Math.max(1, Math.floor((Number(process.env.PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS) || 5) * 0.6))),
     companyDeletionEnabled,
   };
 }
