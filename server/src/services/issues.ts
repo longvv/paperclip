@@ -341,20 +341,23 @@ export function issueService(db: Db) {
   }
 
   async function assertAssignableUser(companyId: string, userId: string) {
+    logger.info({ companyId, userId }, "assertAssignableUser: checking user");
     const membership = await db
-      .select({ id: companyMemberships.id })
+      .select({ id: companyMemberships.id, status: companyMemberships.status })
       .from(companyMemberships)
       .where(
         and(
           eq(companyMemberships.companyId, companyId),
           eq(companyMemberships.principalType, "user"),
           eq(companyMemberships.principalId, userId),
-          eq(companyMemberships.status, "active"),
         ),
       )
       .then((rows) => rows[0] ?? null);
 
-    if (membership) return;
+    if (membership?.status === "active") {
+      logger.info({ companyId, userId }, "assertAssignableUser: user has active membership");
+      return;
+    }
 
     // Fallback: If user is an instance admin, auto-provision membership
     const isAdmin = await db
@@ -369,7 +372,7 @@ export function issueService(db: Db) {
       .then((rows) => rows.length > 0);
 
     if (isAdmin) {
-      logger.info({ companyId, userId }, "Auto-provisioning membership for instance admin");
+      logger.info({ companyId, userId }, "assertAssignableUser: auto-provisioning membership for instance admin");
       await db.insert(companyMemberships).values({
         companyId,
         principalType: "user",
@@ -380,7 +383,7 @@ export function issueService(db: Db) {
       return;
     }
 
-    logger.warn({ companyId, userId }, "Assignee user validation failed: no active membership found");
+    logger.warn({ companyId, userId, membershipFound: !!membership, membershipStatus: membership?.status }, "Assignee user validation failed: user not found or not active in company");
     throw notFound("Assignee user not found");
   }
 
@@ -676,6 +679,7 @@ export function issueService(db: Db) {
         await assertAssignableAgent(companyId, data.assigneeAgentId);
       }
       if (data.assigneeUserId) {
+        logger.info({ companyId, assigneeUserId: data.assigneeUserId }, "createIssue: validating assigneeUserId");
         await assertAssignableUser(companyId, data.assigneeUserId);
       }
       if (data.status === "in_progress" && !data.assigneeAgentId && !data.assigneeUserId) {
@@ -770,6 +774,7 @@ export function issueService(db: Db) {
         await assertAssignableAgent(existing.companyId, issueData.assigneeAgentId);
       }
       if (issueData.assigneeUserId) {
+        logger.info({ id, assigneeUserId: issueData.assigneeUserId }, "updateIssue: validating assigneeUserId");
         await assertAssignableUser(existing.companyId, issueData.assigneeUserId);
       }
 
