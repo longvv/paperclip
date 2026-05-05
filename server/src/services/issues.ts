@@ -17,9 +17,11 @@ import {
   labels,
   projectWorkspaces,
   projects,
+  instanceUserRoles,
 } from "@paperclipai/db";
 import { extractProjectMentionIds } from "@paperclipai/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
+import { logger } from "../middleware/logger.js";
 import {
   defaultIssueExecutionWorkspaceSettingsForProject,
   parseProjectExecutionWorkspacePolicy,
@@ -351,9 +353,35 @@ export function issueService(db: Db) {
         ),
       )
       .then((rows) => rows[0] ?? null);
-    if (!membership) {
-      throw notFound("Assignee user not found");
+
+    if (membership) return;
+
+    // Fallback: If user is an instance admin, auto-provision membership
+    const isAdmin = await db
+      .select({ id: instanceUserRoles.id })
+      .from(instanceUserRoles)
+      .where(
+        and(
+          eq(instanceUserRoles.userId, userId),
+          eq(instanceUserRoles.role, "instance_admin"),
+        ),
+      )
+      .then((rows) => rows.length > 0);
+
+    if (isAdmin) {
+      logger.info({ companyId, userId }, "Auto-provisioning membership for instance admin");
+      await db.insert(companyMemberships).values({
+        companyId,
+        principalType: "user",
+        principalId: userId,
+        status: "active",
+        membershipRole: "owner",
+      }).onConflictDoNothing();
+      return;
     }
+
+    logger.warn({ companyId, userId }, "Assignee user validation failed: no active membership found");
+    throw notFound("Assignee user not found");
   }
 
   async function assertValidLabelIds(companyId: string, labelIds: string[], dbOrTx: any = db) {
