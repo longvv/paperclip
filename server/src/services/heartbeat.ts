@@ -2514,7 +2514,6 @@ export function heartbeatService(db: Db, config?: Config) {
               .update(heartbeatRuns)
               .set({
                 contextSnapshot: mergedContextSnapshot,
-                updatedAt: new Date(),
               })
               .where(eq(heartbeatRuns.id, activeExecutionRun.id))
               .returning()
@@ -2703,7 +2702,6 @@ export function heartbeatService(db: Db, config?: Config) {
         .update(heartbeatRuns)
         .set({
           contextSnapshot: mergedContextSnapshot,
-          updatedAt: new Date(),
         })
         .where(eq(heartbeatRuns.id, coalescedTargetRun.id))
         .returning()
