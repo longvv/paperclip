@@ -13,8 +13,6 @@ services:
       retries: 30
     volumes:
       - pgdata:/var/lib/postgresql/data
-    mem_limit: 512m
-    memswap_limit: 512m
     logging:
       driver: "json-file"
       options:
@@ -35,7 +33,9 @@ services:
       PAPERCLIP_PUBLIC_URL: "${PAPERCLIP_PUBLIC_URL:-http://localhost:3100}"
       BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
-      NODE_OPTIONS: "--max-old-space-size=1024"
+      NODE_OPTIONS: "--max-old-space-size=2048"
+      PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS: "${PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS:-15}"
+      PAPERCLIP_HEARTBEAT_MAX_TIMER_CONCURRENT_RUNS: "${PAPERCLIP_HEARTBEAT_MAX_TIMER_CONCURRENT_RUNS:-8}"
     volumes:
       - paperclip-data:/paperclip
     depends_on:
