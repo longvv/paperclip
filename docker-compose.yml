@@ -13,6 +13,12 @@ services:
       retries: 30
     volumes:
       - pgdata:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+        reservations:
+          memory: 256m
     logging:
       driver: "json-file"
       options:
@@ -34,8 +40,8 @@ services:
       BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       NODE_OPTIONS: "--max-old-space-size=2048"
-      PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS: "${PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS:-15}"
-      PAPERCLIP_HEARTBEAT_MAX_TIMER_CONCURRENT_RUNS: "${PAPERCLIP_HEARTBEAT_MAX_TIMER_CONCURRENT_RUNS:-8}"
+      PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS: "${PAPERCLIP_HEARTBEAT_MAX_TOTAL_CONCURRENT_RUNS:-10}"
+      PAPERCLIP_HEARTBEAT_MAX_TIMER_CONCURRENT_RUNS: "${PAPERCLIP_HEARTBEAT_MAX_TIMER_CONCURRENT_RUNS:-5}"
     volumes:
       - paperclip-data:/paperclip
     depends_on:
