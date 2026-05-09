@@ -48,7 +48,7 @@ import { getStorageService } from "../storage/index.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
-const HEARTBEAT_MAX_CONCURRENT_RUNS_MAX = 20;
+const HEARTBEAT_MAX_CONCURRENT_RUNS_MAX = 1000;
 const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
 const startLocksByAgent = new Map<string, Promise<void>>();
 const REPO_ONLY_CWD_SENTINEL = "/__paperclip_repo_only__";
@@ -1267,7 +1267,7 @@ export function heartbeatService(db: Db, config?: Config) {
 
     const reaped: string[] = [];
 
-    const runningStaleThresholdMs = 4 * 60 * 60 * 1000; // 4 hours
+    const runningStaleThresholdMs = 30 * 60 * 1000; // 30 minutes
     for (const run of activeRuns) {
       const isKnownActive = runningProcesses.has(run.id) || activeRunExecutions.has(run.id);
 
@@ -1379,11 +1379,11 @@ export function heartbeatService(db: Db, config?: Config) {
       if (!agent) return [];
 
       const totalRunning = await countTotalRunningRuns();
-      const globalMax = config?.heartbeatMaxTotalConcurrentRuns ?? 5;
+      const globalMax = config?.heartbeatMaxTotalConcurrentRuns ?? 1000;
       if (totalRunning >= globalMax) return [];
 
       const totalTimerRunning = await countTotalRunningTimerRuns();
-      const timerMax = config?.heartbeatMaxTimerConcurrentRuns ?? 3;
+      const timerMax = config?.heartbeatMaxTimerConcurrentRuns ?? 1000;
 
       const policy = parseHeartbeatPolicy(agent);
       const runningCount = await countRunningRunsForAgent(agentId);
