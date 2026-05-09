@@ -179,6 +179,7 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
   }
 
   if (!models.some((entry) => entry.id === model)) {
+    // Model not available, fall back to free models
     if (model === "opencode/free") {
       return models;
     }
@@ -188,10 +189,24 @@ export async function ensureOpenCodeModelConfiguredAndAvailable(input: {
         return models;
       }
     }
-    const sample = models.slice(0, 12).map((entry) => entry.id).join(", ");
-    throw new Error(
-      `Configured OpenCode model is unavailable: ${model}. Available models: ${sample}${models.length > 12 ? ", ..." : ""}`,
+
+    // Fallback to free models instead of throwing error
+    const freeModels = models.filter((entry) =>
+      entry.id.endsWith(":free") ||
+      entry.id.includes("/free") ||
+      entry.id === "opencode/free" ||
+      entry.id.startsWith("openrouter/") && (entry.id.endsWith(":free") || entry.id.includes("/free"))
     );
+
+    if (freeModels.length > 0) {
+      // Log the fallback for debugging
+      console.warn(`[paperclip] Configured model "${model}" not available. Falling back to free model: ${freeModels[0].id}`);
+      return freeModels;
+    }
+
+    // If no free models available, fall back to first available model
+    console.warn(`[paperclip] Configured model "${model}" not available and no free models found. Using first available model: ${models[0].id}`);
+    return [models[0]];
   }
 
   return models;
