@@ -2561,7 +2561,7 @@ export function accessRoutes(
         req.body.grants ?? [],
         req.actor.userId ?? null
       );
-      if (!updated) throw notFound("Member not found");
+      if (!updated) throw notFound(`Member not found: no active member with ID '${memberId}' in company '${companyId}'`);
       res.json(updated);
     }
   );
@@ -2582,7 +2582,7 @@ export function accessRoutes(
       await assertInstanceAdmin(req);
       const userId = req.params.userId as string;
       const removed = await access.demoteInstanceAdmin(userId);
-      if (!removed) throw notFound("Instance admin role not found");
+      if (!removed) throw notFound(`Instance admin role not found: user '${userId}' is not an instance admin`);
       res.json(removed);
     }
   );

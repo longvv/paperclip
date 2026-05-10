@@ -383,8 +383,13 @@ export function issueService(db: Db) {
       return;
     }
 
-    logger.warn({ companyId, userId, membershipFound: !!membership, membershipStatus: membership?.status }, "Assignee user validation failed: user not found or not active in company");
-    throw notFound("Assignee user not found");
+    if (!membership) {
+      logger.warn({ companyId, userId }, "Assignee user validation failed: user not found in company");
+      throw notFound(`Assignee user (ID: ${userId}) is not a member of company (ID: ${companyId})`);
+    }
+
+    logger.warn({ companyId, userId, membershipStatus: membership.status }, "Assignee user validation failed: user not active in company");
+    throw conflict(`Assignee user (ID: ${userId}) cannot be assigned because their membership status is '${membership.status}'`);
   }
 
   async function assertValidLabelIds(companyId: string, labelIds: string[], dbOrTx: any = db) {

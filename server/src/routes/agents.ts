@@ -165,7 +165,7 @@ export function agentRoutes(db: Db) {
       throw conflict("Agent shortname is ambiguous in this company. Use the agent ID.");
     }
     if (!resolved.agent) {
-      throw notFound("Agent not found");
+      throw notFound(`Agent not found: no agent matching '${raw}' in company '${companyId}'`);
     }
     return resolved.agent.id;
   }
