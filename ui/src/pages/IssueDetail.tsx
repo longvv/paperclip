@@ -212,6 +212,7 @@ export function IssueDetail() {
     queryKey: queryKeys.issues.detail(issueId!),
     queryFn: () => issuesApi.get(issueId!),
     enabled: !!issueId,
+    retry: 1,
   });
   const resolvedCompanyId = issue?.companyId ?? selectedCompanyId;
 
@@ -588,8 +589,25 @@ export function IssueDetail() {
   }, [issue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading...</p>;
-  if (error) return <p className="text-sm text-destructive">{error.message}</p>;
+  if (error) {
+    const status = (error as { status?: number }).status;
+    if (status === 401) {
+      return (
+        <p className="text-sm text-destructive">
+          Session expired.{" "}
+          <a href="/auth" className="underline">Sign in again</a>{" "}
+          or{" "}
+          <button className="underline" onClick={() => window.location.reload()}>reload</button>.
+        </p>
+      );
+    }
+    if (status === 404) {
+      return <p className="text-sm text-muted-foreground">Issue not found: <code>{issueId}</code></p>;
+    }
+    return <p className="text-sm text-destructive">{error.message}</p>;
+  }
   if (!issue) return null;
+
 
   // Ancestors are returned oldest-first from the server (root at end, immediate parent at start)
   const ancestors = issue.ancestors ?? [];
