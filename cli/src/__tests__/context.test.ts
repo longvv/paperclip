@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   defaultClientContext,
   readContext,
@@ -10,10 +10,19 @@ import {
   writeContext,
 } from "../client/context.js";
 
+const tempDirs = new Set<string>();
+
 function createTempContextPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cli-context-"));
+  tempDirs.add(dir);
   return path.join(dir, "context.json");
 }
+
+afterAll(() => {
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 describe("client context store", () => {
   it("returns default context when file does not exist", () => {

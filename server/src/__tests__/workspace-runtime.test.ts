@@ -14,6 +14,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const leasedRunIds = new Set<string>();
+const tempDirs = new Set<string>();
 
 async function runGit(cwd: string, args: string[]) {
   await execFileAsync("git", args, { cwd });
@@ -21,6 +22,7 @@ async function runGit(cwd: string, args: string[]) {
 
 async function createTempRepo() {
   const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-worktree-repo-"));
+  tempDirs.add(repoRoot);
   await runGit(repoRoot, ["init"]);
   await runGit(repoRoot, ["config", "user.email", "paperclip@example.com"]);
   await runGit(repoRoot, ["config", "user.name", "Paperclip Test"]);
@@ -54,6 +56,12 @@ afterEach(async () => {
       await releaseRuntimeServicesForRun(runId);
       leasedRunIds.delete(runId);
     }),
+  );
+  await Promise.all(
+    Array.from(tempDirs).map(async (dir) => {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+      tempDirs.delete(dir);
+    })
   );
 });
 
@@ -216,6 +224,7 @@ describe("realizeExecutionWorkspace", () => {
 describe("ensureRuntimeServicesForRun", () => {
   it("reuses shared runtime services across runs and starts a new service after release", async () => {
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-workspace-"));
+    tempDirs.add(workspaceRoot);
     const workspace = buildWorkspace(workspaceRoot);
     const serviceCommand =
       "node -e \"require('node:http').createServer((req,res)=>res.end('ok')).listen(Number(process.env.PORT), '127.0.0.1')\"";
